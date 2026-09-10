@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Tumble Rush – Virtual Office Games</title>
+  <meta name="description" content="Battle royale rintangan ala Fall Guys untuk Virtual Office. Lolos tiap ronde, jadi juara terakhir.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<canvas id="stage"></canvas>
+
+<!-- ================= LOBBY ================= -->
+<section id="lobby" class="screen">
+  <div class="lobby-grid">
+
+    <div class="panel brand-panel">
+      <h1 class="brand">TUMBLE&nbsp;RUSH</h1>
+      <p class="tagline">Lewati rintangan. Lolos tiap ronde. Jadi yang terakhir bertahan.</p>
+      <div class="profile" id="profile"></div>
+    </div>
+
+    <div class="panel char-panel">
+      <h2 class="ph">Karakter</h2>
+      <div class="char-stage"><canvas id="charPreview" width="200" height="200"></canvas></div>
+      <label class="fld">
+        <span>Nama</span>
+        <input id="nameInput" maxlength="14" placeholder="Nama kamu" autocomplete="off">
+      </label>
+      <div class="fld"><span>Warna</span><div id="colorRow" class="chip-row"></div></div>
+      <div class="fld"><span>Corak</span><div id="patternRow" class="chip-row"></div></div>
+      <div class="fld"><span>Wajah</span><div id="faceRow" class="chip-row"></div></div>
+    </div>
+
+    <div class="panel room-panel">
+      <h2 class="ph">Ruang Tunggu <span id="roomCount" class="muted"></span></h2>
+      <ul id="roster" class="roster"></ul>
+      <p class="hint">Slot kosong diisi bot sampai 14 peserta. Semua pemain siap → mulai lebih cepat.</p>
+      <div class="start-box">
+        <div id="startMsg" class="start-msg">Klik SIAP untuk ikut pertandingan berikutnya</div>
+        <button id="readyBtn" class="btn big">SIAP!</button>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= HUD (in-game) ================= -->
+<div id="hud" class="hidden">
+  <div class="hud-top">
+    <div class="hud-pill" id="hudRound">RONDE 1/4</div>
+    <div class="hud-center">
+      <div class="hud-timer" id="hudTimer">1:20</div>
+      <div class="hud-sub" id="hudGoal">LOLOS 0 / 8</div>
+    </div>
+    <div class="hud-pill" id="hudState">BERLARI</div>
+  </div>
+  <div class="hud-name" id="hudName">Gerbang Gila</div>
+  <div class="dash-wrap"><div class="dash-bar" id="dashBar"></div></div>
+  <div class="hud-hint">WASD / panah gerak &nbsp;·&nbsp; SPASI dorongan</div>
+  <button id="leaveBtn" class="btn ghost small hidden">Kembali ke Lobby</button>
+</div>
+
+<div id="countdown" class="big-overlay hidden"><span id="cdNum">5</span></div>
+<div id="banner" class="banner hidden"></div>
+
+<!-- ================= INTERMISSION ================= -->
+<section id="inter" class="screen dim hidden">
+  <div class="panel result-panel">
+    <h2 id="interTitle">RONDE 1 SELESAI</h2>
+    <div class="result-cols">
+      <div><h3 class="ok">LOLOS</h3><ul id="qualList" class="mini-list"></ul></div>
+      <div><h3 class="bad">TERSINGKIR</h3><ul id="elimList" class="mini-list"></ul></div>
+    </div>
+    <div id="interNext" class="start-msg">Ronde berikutnya dalam 5…</div>
+  </div>
+</section>
+
+<!-- ================= PODIUM ================= -->
+<section id="podium" class="screen dim hidden">
+  <canvas id="confetti"></canvas>
+  <div class="panel podium-panel">
+    <h2 id="podiumTitle">HASIL AKHIR</h2>
+    <div class="podium-stand">
+      <div class="stand s2"><div class="fig" id="fig2"></div><div class="block">2</div><div class="pn" id="pn2"></div></div>
+      <div class="stand s1"><div class="crown">👑</div><div class="fig" id="fig1"></div><div class="block">1</div><div class="pn" id="pn1"></div></div>
+      <div class="stand s3"><div class="fig" id="fig3"></div><div class="block">3</div><div class="pn" id="pn3"></div></div>
+    </div>
+    <div id="rewardBox" class="reward-box"></div>
+    <button id="backBtn" class="btn big">KEMBALI KE LOBBY</button>
+  </div>
+</section>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

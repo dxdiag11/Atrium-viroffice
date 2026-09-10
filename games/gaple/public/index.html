@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gaple – Virtual Office Games</title>
+  <meta name="description" content="Game kartu Gaple untuk 4 pemain — 1 pemain asli vs 3 AI. Bagian dari Virtual Office Games.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ===== HEADER ===== -->
+  <header id="header">
+    <div class="logo">🎴 GAPLE</div>
+    <div class="scores" id="scores">
+      <div class="score-chip" id="chip-0">
+        <span class="chip-dot" style="background:#10b981"></span>
+        <span class="chip-name">Anda</span>
+        <span class="chip-val" id="score-0">0</span>
+      </div>
+      <div class="score-chip" id="chip-1">
+        <span class="chip-dot" style="background:#60a5fa"></span>
+        <span class="chip-name">Pemain 2</span>
+        <span class="chip-val" id="score-1">0</span>
+      </div>
+      <div class="score-chip" id="chip-2">
+        <span class="chip-dot" style="background:#f472b6"></span>
+        <span class="chip-name">Pemain 3</span>
+        <span class="chip-val" id="score-2">0</span>
+      </div>
+      <div class="score-chip" id="chip-3">
+        <span class="chip-dot" style="background:#fb923c"></span>
+        <span class="chip-name">Pemain 4</span>
+        <span class="chip-val" id="score-3">0</span>
+      </div>
+    </div>
+    <div id="turn-indicator" class="turn-wait">Memuat...</div>
+    <button class="btn-new" onclick="onNewRound()" id="btn-new">▶ Ronde Baru</button>
+  </header>
+
+  <!-- ===== BOARD ===== -->
+  <div class="board" id="board">
+
+    <!-- Player Top (index 2) -->
+    <div class="opp-area opp-top" id="p2">
+      <div class="opp-info">
+        <span class="opp-dot" style="background:#f472b6"></span>
+        <span class="opp-name" id="name-2">Pemain 3</span>
+        <span class="opp-count" id="cnt-2">7 kartu</span>
+      </div>
+      <div class="opp-hand opp-hand-top" id="hand-2"></div>
+    </div>
+
+    <!-- Player Left (index 3) -->
+    <div class="opp-area opp-left" id="p3">
+      <div class="opp-hand opp-hand-side" id="hand-3"></div>
+      <div class="opp-info opp-info-vert">
+        <span class="opp-dot" style="background:#fb923c"></span>
+        <span class="opp-name" id="name-3">Pemain 4</span>
+        <span class="opp-count" id="cnt-3">7 kartu</span>
+      </div>
+    </div>
+
+    <!-- Chain area (center) -->
+    <div class="chain-area" id="chain-area">
+      <div class="chain-ends" id="chain-ends" style="display:none">
+        <span class="end-badge left-end">← <strong id="cl">—</strong></span>
+        <span class="chain-label">RANTAI</span>
+        <span class="end-badge right-end"><strong id="cr">—</strong> →</span>
+      </div>
+      <div id="chain-wrap">
+        <div id="chain">
+          <div class="chain-empty">Letakkan kartu pertama...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Player Right (index 1) -->
+    <div class="opp-area opp-right" id="p1">
+      <div class="opp-info opp-info-vert">
+        <span class="opp-dot" style="background:#60a5fa"></span>
+        <span class="opp-name" id="name-1">Pemain 2</span>
+        <span class="opp-count" id="cnt-1">7 kartu</span>
+      </div>
+      <div class="opp-hand opp-hand-side" id="hand-1"></div>
+    </div>
+
+  </div>
+
+  <!-- ===== MY HAND ===== -->
+  <div class="my-hand-area" id="my-hand-area">
+    <div class="my-hand-header">
+      <span class="hand-label">🖐 KARTU ANDA</span>
+      <span class="hand-count" id="my-count">7 kartu</span>
+    </div>
+    <div id="my-hand"></div>
+  </div>
+
+  <!-- ===== CONTROLS ===== -->
+  <div class="controls-area" id="controls"></div>
+
+  <!-- ===== LOG ===== -->
+  <aside class="log-panel">
+    <div class="log-header">📋 Log Permainan</div>
+    <div id="log"></div>
+  </aside>
+
+</div>
+
+<!-- ===== MODAL ===== -->
+<div id="modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div id="modal-icon" class="modal-icon"></div>
+    <div id="modal-title" class="modal-title"></div>
+    <div id="modal-body"></div>
+    <button class="btn-play-again" onclick="onNewRound()">🎴 Main Lagi</button>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>

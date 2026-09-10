@@ -91,6 +91,30 @@
   </div>
 </div>
 
+<!-- Muncul saat kamu duduk di depan komputer -->
+<div id="arcade" hidden>
+  <div class="arcade-card">
+    <h2>🕹️ Main Game</h2>
+    <p>Kamu duduk di depan komputer kantor. Mau main apa?</p>
+    <div class="arcade-choices">
+      <button type="button" data-game="gaple"><span class="emoji">🀄</span> Gaple</button>
+      <button type="button" data-game="tumble"><span class="emoji">🏃</span> Tumble Rush</button>
+      <button type="button" data-game="werewolf"><span class="emoji">🐺</span> Werewolf</button>
+    </div>
+    <button id="arcade-close" type="button" class="arcade-x">Nanti dulu</button>
+  </div>
+</div>
+
+<!-- Overlay tempat game berjalan di dalam Atrium -->
+<div id="gameframe" hidden>
+  <div class="gameframe-bar">
+    <span id="gameframe-title">Game</span>
+    <button id="gameframe-exit" type="button">✕ Keluar &amp; kembali ke kantor</button>
+  </div>
+  <iframe id="gameframe-iframe" title="Game" allow="microphone; autoplay; fullscreen"></iframe>
+  <p id="gameframe-hint" hidden>Game tidak memuat. Pastikan server game-nya jalan (<code>npm run start:all</code>).</p>
+</div>
+
 <script src="/socket.io/socket.io.js"></script>
 <script src="geom.js"></script>
 <script src="office.js"></script>
