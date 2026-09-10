@@ -161,7 +161,7 @@ spasi saja); `makeBucket` (izinkan sampai limit, tolak sesudahnya, pulih setelah
 
 ---
 
-## M1 — Mention sebagai routing `[ ]`
+## M1 — Mention sebagai routing `[x]`
 
 **Depends on:** M0
 

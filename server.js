@@ -100,9 +100,28 @@ io.on('connection', (socket) => {
       return warn(socket, 'Terlalu cepat. Tunggu sebentar.');
     }
 
-    const msg = makeMessage({ scope: 'all', from: socket.id, name: me.name, color: me.color, text });
-    remember(msg);
-    io.emit('chat', msg);
+    const { scope, ids, unknown } = resolveRecipients(text, socket.id, players);
+    if (unknown.length) {
+      // Sending it anyway would leak a message meant to be private, so drop it entirely.
+      return warn(socket, 'Tidak ada user bernama @' + unknown.join(', @'));
+    }
+
+    const msg = makeMessage({
+      scope,
+      from: socket.id,
+      name: me.name,
+      color: me.color,
+      text,
+      mentions: ids || [],
+    });
+
+    if (scope === 'all') {
+      remember(msg);
+      return io.emit('chat', msg);
+    }
+    // Routed server-side, never broadcast-then-filtered: anyone could read a filtered
+    // message straight out of devtools. Deliberately not remembered, either.
+    for (const id of ids) io.to(id).emit('chat', msg);
   });
 
   socket.on('move', (pos) => {

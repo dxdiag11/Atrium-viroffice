@@ -127,3 +127,70 @@ test('uniqueName only suffixes on a clash, case-insensitively', () => {
   assert.strictEqual(uniqueName('Budi', ['budi']), 'Budi (2)');
   assert.strictEqual(uniqueName('Budi', ['Budi', 'Budi (2)']), 'Budi (3)');
 });
+
+test('parseMentions finds names anywhere in the text', () => {
+  const names = ['Sari', 'Budi'];
+
+  assert.deepStrictEqual(parseMentions('@Sari hi', names).mentioned, ['Sari']);
+  assert.deepStrictEqual(parseMentions('hi @Sari ok', names).mentioned, ['Sari']);
+  assert.deepStrictEqual(parseMentions('hi @Sari', names).mentioned, ['Sari']);
+  assert.deepStrictEqual(parseMentions('@Sari @Budi hi', names).mentioned, ['Sari', 'Budi']);
+  assert.deepStrictEqual(parseMentions('@Sari @Sari hi', names).mentioned, ['Sari']);
+  assert.deepStrictEqual(parseMentions('@sari hi', names).mentioned, ['Sari']); // canonical case
+});
+
+test('parseMentions prefers the longest matching name', () => {
+  const names = ['Budi', 'Budiman', 'Budi Ganteng'];
+
+  assert.deepStrictEqual(parseMentions('@Budiman hi', names).mentioned, ['Budiman']);
+  assert.deepStrictEqual(parseMentions('@Budi Ganteng hi', names).mentioned, ['Budi Ganteng']);
+  assert.deepStrictEqual(parseMentions('@Budi hi', names).mentioned, ['Budi']);
+});
+
+test('parseMentions reports unknown names and ignores non-mentions', () => {
+  const names = ['Sari'];
+
+  assert.deepStrictEqual(parseMentions('@Sarii hi', names).unknown, ['Sarii']);
+  assert.deepStrictEqual(parseMentions('@Sarii @Sarii', names).unknown, ['Sarii']);
+  assert.deepStrictEqual(parseMentions('mail a@b.com', names).unknown, []);
+  assert.deepStrictEqual(parseMentions('mail a@b.com', names).mentioned, []);
+  assert.deepStrictEqual(parseMentions('price @', names).unknown, []);
+  assert.deepStrictEqual(parseMentions('price @ 10', names).mentioned, []);
+  assert.deepStrictEqual(parseMentions('who @', names).tokens, [{ type: 'text', value: 'who @' }]);
+});
+
+test('parseMentions tokens rebuild the original text', () => {
+  const names = ['Sari', 'Budi'];
+  for (const text of ['@Sari hi @Budi', 'no mentions', 'a@b.com @Sarii', '@Sari', 'hi @Sari']) {
+    const rebuilt = parseMentions(text, names).tokens
+      .map((t) => (t.type === 'mention' ? '@' + t.value : t.value))
+      .join('');
+    assert.strictEqual(rebuilt.toLowerCase(), text.toLowerCase());
+  }
+});
+
+test('resolveRecipients routes by mention', () => {
+  const players = {
+    s1: { id: 's1', name: 'Budi' },
+    s2: { id: 's2', name: 'Sari' },
+    s3: { id: 's3', name: 'Andi' },
+  };
+
+  assert.deepStrictEqual(resolveRecipients('halo semua', 's1', players), {
+    scope: 'all', ids: null, unknown: [],
+  });
+
+  const one = resolveRecipients('@Sari cek ini', 's1', players);
+  assert.strictEqual(one.scope, 'mention');
+  assert.deepStrictEqual(one.ids, ['s2', 's1']); // sender always included
+
+  const two = resolveRecipients('@Sari @Andi halo', 's1', players);
+  assert.deepStrictEqual(two.ids, ['s2', 's3', 's1']);
+
+  // Mentioning yourself must not duplicate you in the recipient list.
+  assert.deepStrictEqual(resolveRecipients('@Budi note', 's1', players).ids, ['s1']);
+
+  const bad = resolveRecipients('@Sarii halo', 's1', players);
+  assert.deepStrictEqual(bad.unknown, ['Sarii']);
+  assert.deepStrictEqual(bad.ids, []);
+});
