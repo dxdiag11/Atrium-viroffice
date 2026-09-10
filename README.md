@@ -49,10 +49,27 @@ Drop the artwork at `public/assets/map.png` and it replaces the generated SVG as
 background. The collision boxes still come from `office.js`, so update the room and
 furniture coordinates there to line up with the art.
 
+## Walkie-talkie
+
+Hold `T` to transmit to everyone on the floor, however far away they are. Release to
+drop the channel.
+
+One person holds the channel at a time -- the server decides, so whoever pressed first
+wins and everyone else sees `channel busy`. A transmission arrives band-limited and
+saturated, with a squelch click on each end, so it is obviously coming over the air
+rather than from someone standing next to you. Anyone already close enough to hear you
+directly does *not* get the radio copy: no doubled voice.
+
+The channel auto-releases after 30 seconds, and on blur or disconnect. A browser that
+swallows the `keyup` -- alt-tab, lock screen, crashed tab -- would otherwise hold it
+shut for everyone.
+
 ## Tuning the audio
 
 `public/geom.js`: `NEAR` (full volume within this distance) and `FAR` (silent at or
-beyond it), in map pixels.
+beyond it), in map pixels, plus `RADIO_LEVEL` for how loud walkie transmissions are.
+The filter shape and squelch live in `attachAudio` and `playSquelch` in
+`public/rtc.js`.
 
 ## Limits
 

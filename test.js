@@ -23,6 +23,18 @@ test('falloff decreases monotonically', () => {
   }
 });
 
+test('radioGain only opens up where the voice is not already audible', () => {
+  assert.strictEqual(radioGain(0, false), 0);
+  assert.strictEqual(radioGain(9999, false), 0); // silent unless someone is transmitting
+
+  assert.strictEqual(radioGain(0, true), 0);        // standing on top of them
+  assert.strictEqual(radioGain(NEAR, true), 0);     // still full proximity volume
+  assert.strictEqual(radioGain(FAR - 1, true), 0);  // faint, but heard directly
+
+  assert.strictEqual(radioGain(FAR, true), RADIO_LEVEL);       // the handover point
+  assert.strictEqual(radioGain(FAR + 2000, true), RADIO_LEVEL); // distance stops mattering
+});
+
 test('canMove blocks overlap, allows clearance', () => {
   const walls = [[100, 100, 50, 50]]; // rect spans x 100-150, y 100-150
   const r = 10;

@@ -5,6 +5,8 @@ const PC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 let audioCtx = null;
 let localStream = null;
 let selfId = null;
+let radioCurve = null;   // saturation curve, shared by every peer's radio branch
+let noiseBuffer = null;  // one second of noise, sliced for squelch bursts
 
 // id -> { pc, polite, makingOffer, ignoreOffer, gain, panner, element }
 const peers = {};
@@ -17,6 +19,48 @@ async function startVoice() {
   });
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   await audioCtx.resume();
+
+  radioCurve = saturationCurve(12);
+  noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.3, audioCtx.sampleRate);
+  const noise = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noise.length; i++) noise[i] = Math.random() * 2 - 1;
+}
+
+// Soft clipping. A little of this is what separates "quiet voice" from "voice over a
+// cheap radio"; too much just sounds broken.
+function saturationCurve(amount) {
+  const n = 1024;
+  const curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (i / (n - 1)) * 2 - 1;
+    curve[i] = ((1 + amount) * x) / (1 + amount * Math.abs(x));
+  }
+  return curve;
+}
+
+// The click on either edge of a transmission. Without it a walkie transmission just
+// starts and stops, and nobody can tell whether the channel is open.
+function playSquelch(open) {
+  if (!audioCtx || !noiseBuffer) return;
+
+  const now = audioCtx.currentTime;
+  const dur = open ? 0.05 : 0.12;
+  const src = audioCtx.createBufferSource();
+  src.buffer = noiseBuffer;
+
+  const band = audioCtx.createBiquadFilter();
+  band.type = 'bandpass';
+  band.frequency.value = open ? 2200 : 1300;
+  band.Q.value = 1.2;
+
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(open ? 0.1 : 0.18, now + 0.008);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+
+  src.connect(band).connect(gain).connect(audioCtx.destination);
+  src.start(now);
+  src.stop(now + dur + 0.02);
 }
 
 function setSelfId(id) {
@@ -40,6 +84,7 @@ function connectPeer(id) {
     ignoreOffer: false,
     gain: null,
     panner: null,
+    radio: null,
     element: null,
   };
   peers[id] = peer;
@@ -91,6 +136,21 @@ function attachAudio(peer, stream) {
   peer.gain.gain.value = 0; // start silent, the distance loop fades it in
   peer.panner = audioCtx.createStereoPanner();
   source.connect(peer.gain).connect(peer.panner).connect(audioCtx.destination);
+
+  // Walkie branch, off the same source: band-limited and saturated so it is obviously
+  // arriving over the air rather than from someone standing next to you.
+  const high = audioCtx.createBiquadFilter();
+  high.type = 'highpass';
+  high.frequency.value = 300;
+  const low = audioCtx.createBiquadFilter();
+  low.type = 'lowpass';
+  low.frequency.value = 3000;
+  const shaper = audioCtx.createWaveShaper();
+  shaper.curve = radioCurve;
+
+  peer.radio = audioCtx.createGain();
+  peer.radio.gain.value = 0;
+  source.connect(high).connect(low).connect(shaper).connect(peer.radio).connect(audioCtx.destination);
 }
 
 function closePeer(id) {
@@ -102,6 +162,7 @@ function closePeer(id) {
   peer.pc.close();
   if (peer.gain) peer.gain.disconnect();
   if (peer.panner) peer.panner.disconnect();
+  if (peer.radio) peer.radio.disconnect();
   if (peer.element) {
     peer.element.srcObject = null;
     peer.element = null;
@@ -110,7 +171,7 @@ function closePeer(id) {
 
 // Called every frame from the render loop.
 // Returns how many peers are audible, for the HUD.
-function updateSpatialAudio(me, players) {
+function updateSpatialAudio(me, players, radioHolder) {
   if (!audioCtx) return 0;
   const now = audioCtx.currentTime;
   let audible = 0;
@@ -128,6 +189,10 @@ function updateSpatialAudio(me, players) {
     // setTargetAtTime instead of .value: ramps smoothly, no zipper noise.
     peer.gain.gain.setTargetAtTime(gain, now, 0.08);
     peer.panner.pan.setTargetAtTime(Math.max(-1, Math.min(1, dx / FAR)), now, 0.08);
+
+    // A radio keys up sharply, so this one gets a much shorter time constant.
+    const overRadio = radioGain(Math.hypot(dx, dy), id === radioHolder);
+    peer.radio.gain.setTargetAtTime(overRadio, now, 0.02);
   }
   return audible;
 }

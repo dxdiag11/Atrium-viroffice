@@ -25,6 +25,15 @@ html, body {
 }
 
 #hud .hint { color: #8b90a0; }
+#radio { color: #8b90a0; }
+#radio.live { color: #e0956a; font-weight: 600; }
+#radio.busy { color: #e07a6a; font-weight: 600; }
+
+/* Impossible to miss that you are broadcasting to the whole floor. */
+#hud.on-air {
+  background: rgba(70, 26, 26, 0.9);
+  border-color: #a03c3c;
+}
 #peers { color: #9fe0b0; }
 
 button {

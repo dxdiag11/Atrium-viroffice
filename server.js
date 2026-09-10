@@ -28,6 +28,18 @@ const COLORS = ['#e0533f', '#3f8ee0', '#3fbf6f', '#d8a13a', '#a55fd0', '#3fc4c4'
 const players = {};
 let colorIndex = 0;
 
+// The walkie channel: one talker at a time, owned here for the same reason seats are.
+const RADIO_TIMEOUT = 30000;
+let radio = null;
+let radioTimer = null;
+
+function releaseRadio(io) {
+  clearTimeout(radioTimer);
+  const id = radio;
+  radio = null;
+  if (id) io.emit('radio', { id, on: false });
+}
+
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 io.on('connection', (socket) => {
@@ -42,7 +54,7 @@ io.on('connection', (socket) => {
       y: clamp(map.spawn.y + (Math.random() - 0.5) * 120, 0, map.height),
       seat: null,
     };
-    socket.emit('players', players, socket.id);
+    socket.emit('players', players, socket.id, radio);
     socket.broadcast.emit('player-joined', players[socket.id]);
   });
 
@@ -82,6 +94,22 @@ io.on('connection', (socket) => {
     io.emit('player-seat', { id: socket.id, seat: null, x: p.x, y: p.y });
   });
 
+  socket.on('ptt-down', () => {
+    if (!players[socket.id]) return;
+    if (radio && radio !== socket.id) return socket.emit('radio-busy', radio);
+
+    radio = socket.id;
+    // A browser that never delivers keyup -- alt-tab, lock screen, crashed tab -- would
+    // otherwise hold the channel shut for everyone with no way back.
+    clearTimeout(radioTimer);
+    radioTimer = setTimeout(() => releaseRadio(io), RADIO_TIMEOUT);
+    io.emit('radio', { id: socket.id, on: true });
+  });
+
+  socket.on('ptt-up', () => {
+    if (radio === socket.id) releaseRadio(io);
+  });
+
   // Verbatim relay of WebRTC offer/answer/ICE between two players.
   socket.on('signal', (msg) => {
     if (!msg || !players[msg.to] || !players[socket.id]) return;
@@ -89,6 +117,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    if (radio === socket.id) releaseRadio(io);
     if (!players[socket.id]) return;
     delete players[socket.id];
     io.emit('player-left', socket.id);

@@ -15,6 +15,7 @@ let myId = null;
 let map = null;
 let background = null;
 let showRange = false;
+let radioHolder = null; // socket id currently holding the walkie channel
 let lastSent = 0;
 let sentX = null;
 let sentY = null;
@@ -70,8 +71,9 @@ document.getElementById('mute').addEventListener('click', (e) => {
 
 // --- socket ----------------------------------------------------------------
 
-socket.on('players', (all, id) => {
+socket.on('players', (all, id, holder) => {
   myId = id;
+  radioHolder = holder || null;
   setSelfId(id);
   for (const p of Object.values(all)) addPlayer(p);
   for (const otherId of Object.keys(all)) {
@@ -79,6 +81,7 @@ socket.on('players', (all, id) => {
   }
   document.getElementById('gate').hidden = true;
   document.getElementById('hud').hidden = false;
+  renderRadio();
 });
 
 socket.on('player-joined', (p) => {
@@ -112,6 +115,30 @@ socket.on('player-left', (id) => {
   closePeer(id);
 });
 
+socket.on('radio', ({ id, on }) => {
+  radioHolder = on ? id : null;
+  playSquelch(on);
+  renderRadio();
+});
+
+socket.on('radio-busy', () => {
+  const el = document.getElementById('radio');
+  el.textContent = 'channel busy';
+  el.className = 'busy';
+  setTimeout(renderRadio, 1000);
+});
+
+function renderRadio() {
+  const el = document.getElementById('radio');
+  const hud = document.getElementById('hud');
+  const mine = radioHolder === myId;
+  const who = players[radioHolder];
+
+  el.textContent = !radioHolder ? 'hold T to talk' : mine ? 'ON AIR' : 'on air - ' + (who ? who.name : '?');
+  el.className = radioHolder ? 'live' : '';
+  hud.classList.toggle('on-air', mine);
+}
+
 socket.on('signal', ({ from, data }) => handleSignal(from, data));
 
 socket.on('disconnect', () => {
@@ -126,12 +153,26 @@ function addPlayer(p) {
 
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
+  const key = e.key.toLowerCase();
   if (e.key === '`') showRange = !showRange;
-  if (e.key.toLowerCase() === 'e' && players[myId]) toggleSit(players[myId]);
-  held.add(e.key.toLowerCase());
+  if (key === 'e' && players[myId]) toggleSit(players[myId]);
+  // keydown repeats while a key is held, so ask the channel only on the first one.
+  if (key === 't' && !held.has('t') && myId) socket.emit('ptt-down');
+  held.add(key);
 });
-window.addEventListener('keyup', (e) => held.delete(e.key.toLowerCase()));
-window.addEventListener('blur', () => held.clear());
+
+window.addEventListener('keyup', (e) => {
+  const key = e.key.toLowerCase();
+  if (key === 't') socket.emit('ptt-up');
+  held.delete(key);
+});
+
+// Alt-tabbing mid-transmission is the likeliest way to strand the channel: the browser
+// never sends the keyup. The server's timeout is the backstop, not the mechanism.
+window.addEventListener('blur', () => {
+  if (held.has('t')) socket.emit('ptt-up');
+  held.clear();
+});
 
 function axis(negKeys, posKeys) {
   const neg = negKeys.some((k) => held.has(k)) ? -1 : 0;
@@ -283,6 +324,16 @@ function draw(me) {
 }
 
 function drawPlayer(p, isSelf) {
+  if (p.id === radioHolder) {
+    // Pulsing ring, so a voice on the radio always has a visible source on the map.
+    const pulse = RADIUS + 8 + Math.sin(performance.now() / 160) * 4;
+    ctx.beginPath();
+    ctx.arc(p.rx, p.ry, pulse, 0, Math.PI * 2);
+    ctx.strokeStyle = '#e0956a';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+
   ctx.beginPath();
   ctx.arc(p.rx, p.ry, RADIUS, 0, Math.PI * 2);
   ctx.fillStyle = p.color;
@@ -303,7 +354,7 @@ function drawPlayer(p, isSelf) {
 setInterval(() => {
   const me = players[myId];
   if (!me) return;
-  const audible = updateSpatialAudio(me, players);
+  const audible = updateSpatialAudio(me, players, radioHolder);
   document.getElementById('peers').textContent = audible + ' nearby';
 }, 100);
 
