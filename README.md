@@ -41,7 +41,8 @@ a shape function to `SHAPES` there, and an entry to `SOLID` in `office.js` if pe
 should not be able to walk through it.
 
 Sitting: walk onto a chair and press `E`. Pressing `E` again, or any movement key, gets
-you back up.
+you back up. One person per chair, and a seated person is solid -- nobody can walk
+through or stand on top of them. Standing players still pass through each other.
 
 ## Swapping in the real map
 

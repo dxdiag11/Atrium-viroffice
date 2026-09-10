@@ -28,4 +28,22 @@ function canMove(x, y, r, rects) {
   return true;
 }
 
-Object.assign(globalThis, { NEAR, FAR, RADIUS, RADIO_LEVEL, falloff, radioGain, canMove });
+// Seated players are solid. Collision boxes for the ones that should block a mover
+// standing at (x, y) -- pass everyone except the mover.
+//
+// A body the mover is ALREADY inside is skipped on purpose. You can stand on an empty
+// chair, and someone else can then sit on it; without this the two of you overlap, every
+// direction is blocked, and the standing one is trapped inside the seated one forever.
+function seatedBlockers(x, y, others) {
+  const out = [];
+  for (const p of others) {
+    if (p.seat === null || p.seat === undefined) continue;
+    const rect = [p.x - RADIUS, p.y - RADIUS, RADIUS * 2, RADIUS * 2];
+    if (canMove(x, y, RADIUS, [rect])) out.push(rect);
+  }
+  return out;
+}
+
+Object.assign(globalThis, {
+  NEAR, FAR, RADIUS, RADIO_LEVEL, falloff, radioGain, canMove, seatedBlockers,
+});

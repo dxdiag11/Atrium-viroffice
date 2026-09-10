@@ -231,7 +231,7 @@ function stand(me, step = true) {
     const [ox, oy] = STAND_OFFSET[seat.dir] || [0, 44];
     const nx = clamp(me.x + ox, RADIUS, map.width - RADIUS);
     const ny = clamp(me.y + oy, RADIUS, map.height - RADIUS);
-    if (canMove(nx, ny, RADIUS, map.collisions)) {
+    if (canMove(nx, ny, RADIUS, solidsAround(me))) {
       me.x = nx;
       me.y = ny;
     }
@@ -251,16 +251,24 @@ function move(me, dt) {
     dy *= inv;
   }
   const step = SPEED * dt;
+  const walls = solidsAround(me);
 
   // Axis-separated so hitting a wall on one axis still allows sliding on the other.
   const nx = clamp(me.x + dx * step, RADIUS, map.width - RADIUS);
-  if (canMove(nx, me.y, RADIUS, map.collisions)) me.x = nx;
+  if (canMove(nx, me.y, RADIUS, walls)) me.x = nx;
 
   const ny = clamp(me.y + dy * step, RADIUS, map.height - RADIUS);
-  if (canMove(me.x, ny, RADIUS, map.collisions)) me.y = ny;
+  if (canMove(me.x, ny, RADIUS, walls)) me.y = ny;
 }
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+// Walls, furniture, and anyone currently sitting down.
+function solidsAround(me) {
+  const others = Object.values(players).filter((p) => p.id !== me.id);
+  const bodies = seatedBlockers(me.x, me.y, others);
+  return bodies.length ? map.collisions.concat(bodies) : map.collisions;
+}
 
 // --- loop ------------------------------------------------------------------
 

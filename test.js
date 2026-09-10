@@ -45,6 +45,31 @@ test('canMove blocks overlap, allows clearance', () => {
   assert.strictEqual(canMove(400, 400, r, walls), true);  // far away
 });
 
+test('seated players are solid, standing ones are not', () => {
+  const sitter = { x: 300, y: 300, seat: 4 };
+  const stander = { x: 300, y: 300, seat: null };
+
+  // walking up to them from well clear
+  assert.strictEqual(seatedBlockers(200, 300, [stander]).length, 0);
+  assert.strictEqual(seatedBlockers(200, 300, [sitter]).length, 1);
+
+  const [rect] = seatedBlockers(200, 300, [sitter]);
+  assert.strictEqual(canMove(300, 300, RADIUS, [rect]), false); // cannot stand on them
+  assert.strictEqual(canMove(200, 300, RADIUS, [rect]), true);  // clear of them
+});
+
+test('a seated player you are already inside does not trap you', () => {
+  // You were standing on an empty chair when someone else sat on it.
+  const sitter = { x: 300, y: 300, seat: 4 };
+  assert.deepStrictEqual(seatedBlockers(300, 300, [sitter]), []);
+
+  // Nudge out: still overlapping, still not blocking, so every direction stays open.
+  assert.deepStrictEqual(seatedBlockers(310, 300, [sitter]), []);
+
+  // Once clear, they go solid again and you cannot walk back in.
+  assert.strictEqual(seatedBlockers(360, 300, [sitter]).length, 1);
+});
+
 test('axis-separated move slides along a wall', () => {
   const walls = [[100, 100, 50, 50]];
   const r = 10;
