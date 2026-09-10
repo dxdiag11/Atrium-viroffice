@@ -60,6 +60,13 @@ saturated, with a squelch click on each end, so it is obviously coming over the 
 rather than from someone standing next to you. Anyone already close enough to hear you
 directly does *not* get the radio copy: no doubled voice.
 
+A handset slides in on the right of *every* screen while the channel is open, with the
+channel number, who is talking, and a level meter fed from their live mic. The person
+holding the key gets the transmitting version -- red light blinking, antenna radiating,
+push-to-talk button pressed in, `TX` -- while everyone else gets a green `RX` handset
+with the talker's name. `public/walkie.js` drives it; the SVG itself is in
+`public/index.html` and its trim is all CSS.
+
 The channel auto-releases after 30 seconds, and on blur or disconnect. A browser that
 swallows the `keyup` -- alt-tab, lock screen, crashed tab -- would otherwise hold it
 shut for everyone.

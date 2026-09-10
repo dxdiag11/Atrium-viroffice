@@ -119,6 +119,13 @@ socket.on('radio', ({ id, on }) => {
   radioHolder = on ? id : null;
   playSquelch(on);
   renderRadio();
+
+  if (on) {
+    const who = players[id];
+    showWalkie(who ? who.name : '', id === myId);
+  } else {
+    hideWalkie();
+  }
 });
 
 socket.on('radio-busy', () => {
@@ -279,6 +286,8 @@ function frame(now) {
 
   }
 
+  updateWalkieMeter(radioHolder ? micLevel(radioHolder) : 0);
+
   draw(me);
   requestAnimationFrame(frame);
 }
@@ -358,4 +367,5 @@ setInterval(() => {
   document.getElementById('peers').textContent = audible + ' nearby';
 }, 100);
 
+initWalkie();
 loadMap().then(() => requestAnimationFrame(frame));

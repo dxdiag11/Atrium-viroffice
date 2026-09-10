@@ -16,6 +16,54 @@
   <span class="hint">WASD / arrows &middot; E to sit &middot; hold T to talk &middot; ` for range</span>
 </div>
 
+<div id="walkie" aria-hidden="true">
+  <svg viewBox="0 0 120 264" width="120" height="264" xmlns="http://www.w3.org/2000/svg">
+    <!-- antenna -->
+    <rect x="22" y="6" width="9" height="46" rx="4.5" fill="#252b39"/>
+    <rect x="24" y="8" width="3" height="42" rx="1.5" fill="#39415a"/>
+    <circle cx="26.5" cy="7" r="4" fill="#2f3648"/>
+
+    <!-- transmission waves, only drawn while this radio is the one talking -->
+    <g class="waves" fill="none" stroke="#ff6b5a" stroke-width="2.5" stroke-linecap="round">
+      <path class="w1" d="M36 12 a14 14 0 0 1 0 20"/>
+      <path class="w2" d="M44 6 a22 22 0 0 1 0 32"/>
+      <path class="w3" d="M52 0 a30 30 0 0 1 0 44"/>
+    </g>
+
+    <!-- body -->
+    <rect class="shell" x="8" y="48" width="104" height="208" rx="15" fill="#333a4c" stroke="#1d2230" stroke-width="2"/>
+    <rect x="13" y="53" width="94" height="10" rx="5" fill="#3d4559" opacity="0.7"/>
+
+    <!-- push-to-talk button on the side -->
+    <rect class="ptt" x="1" y="112" width="9" height="46" rx="4" fill="#272d3c" stroke="#1d2230"/>
+
+    <!-- status light -->
+    <circle cx="94" cy="70" r="7" fill="#1e2330"/>
+    <circle class="led" cx="94" cy="70" r="4.5" fill="#4a5568"/>
+
+    <!-- screen -->
+    <rect x="18" y="80" width="84" height="46" rx="6" fill="#0e1c16" stroke="#1d2230" stroke-width="2"/>
+    <text class="ch" x="26" y="99" font-family="ui-monospace, Menlo, monospace" font-size="14" font-weight="700" fill="#6dffae">CH 01</text>
+    <text class="mode" x="94" y="99" font-family="ui-monospace, Menlo, monospace" font-size="12" font-weight="700" fill="#6dffae" text-anchor="end">RX</text>
+    <text class="who" x="26" y="117" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#43a877">--</text>
+
+    <!-- level meter -->
+    <rect x="18" y="132" width="84" height="30" rx="5" fill="#0e1c16" stroke="#1d2230" stroke-width="2"/>
+    <g class="bars" fill="#6dffae"></g>
+
+    <!-- speaker grille -->
+    <g fill="#262c3a">
+      <rect x="22" y="174" width="76" height="7" rx="3.5"/>
+      <rect x="22" y="187" width="76" height="7" rx="3.5"/>
+      <rect x="22" y="200" width="76" height="7" rx="3.5"/>
+      <rect x="22" y="213" width="76" height="7" rx="3.5"/>
+    </g>
+
+    <text x="60" y="240" font-family="ui-monospace, Menlo, monospace" font-size="9" letter-spacing="3"
+      fill="#5b6480" text-anchor="middle">ATRIUM</text>
+  </svg>
+</div>
+
 <div id="gate">
   <div class="card">
     <h1>Atrium</h1>
@@ -31,6 +79,7 @@
 <script src="geom.js"></script>
 <script src="office.js"></script>
 <script src="office-svg.js"></script>
+<script src="walkie.js"></script>
 <script src="rtc.js"></script>
 <script src="main.js"></script>
 </body>
