@@ -286,8 +286,10 @@ function openGame(key) {
   iframe.onerror = () => { document.getElementById('gameframe-hint').hidden = false; };
   document.getElementById('arcade').hidden = true;
   document.getElementById('gameframe').hidden = false;
-  held.clear(); // so you are not still "walking" when you come back
+  // Release the walkie BEFORE clearing the key set, or the check can never be true and
+  // opening a game mid-transmission strands the channel until the server times it out.
   if (held.has('t')) socket.emit('ptt-up');
+  held.clear(); // so you are not still "walking" when you come back
 }
 
 function closeGame() {

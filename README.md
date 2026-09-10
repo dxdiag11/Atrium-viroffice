@@ -16,6 +16,13 @@ pods) and a **Main Game** menu pops up: **Gaple**, **Tumble Rush**, or **Werewol
 Pick one and it runs in an overlay right inside the office — "✕ Keluar" drops you
 back at your desk.
 
+Each game has its own dependencies, so a fresh clone needs them installed once before
+`start:all` will come up:
+
+```bash
+for d in games/*/; do (cd "$d" && npm install); done
+```
+
 Each game is its own standalone server, unchanged from a plain `games/*` app:
 `gaple` :3200, `tumble` :3300, `werewolf` :3400. The office iframes them from
 `http://<host>:<port>/?name=…&color=…` (so your office name/colour carry in) and a
