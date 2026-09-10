@@ -1,0 +1,82 @@
+const express = require('express');
+const fs = require('fs');
+const http = require('http');
+const https = require('https');
+const os = require('os');
+const { Server } = require('socket.io');
+
+require('./public/office.js');
+const map = buildOffice(); // walls, spawn and seats all come from the one office model
+
+const app = express();
+app.use(express.static(__dirname + '/public'));
+
+// Browsers only hand out a mic on a secure origin. localhost counts as one; a LAN IP
+// does not, so testing with someone on another machine needs https. Run ./make-cert.sh
+// and this switches to https automatically.
+const key = __dirname + '/certs/key.pem';
+const cert = __dirname + '/certs/cert.pem';
+const secure = fs.existsSync(key) && fs.existsSync(cert);
+
+const server = secure
+  ? https.createServer({ key: fs.readFileSync(key), cert: fs.readFileSync(cert) }, app)
+  : http.createServer(app);
+
+const io = new Server(server);
+
+const COLORS = ['#e0533f', '#3f8ee0', '#3fbf6f', '#d8a13a', '#a55fd0', '#3fc4c4', '#e06fa8', '#7a8ff0'];
+const players = {};
+let colorIndex = 0;
+
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+io.on('connection', (socket) => {
+  socket.on('join', (payload) => {
+    if (players[socket.id]) return;
+    const name = String((payload && payload.name) || 'anon').slice(0, 16);
+    players[socket.id] = {
+      id: socket.id,
+      name,
+      color: COLORS[colorIndex++ % COLORS.length],
+      x: clamp(map.spawn.x + (Math.random() - 0.5) * 120, 0, map.width),
+      y: clamp(map.spawn.y + (Math.random() - 0.5) * 120, 0, map.height),
+    };
+    socket.emit('players', players, socket.id);
+    socket.broadcast.emit('player-joined', players[socket.id]);
+  });
+
+  socket.on('move', (pos) => {
+    const p = players[socket.id];
+    if (!p || !pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return;
+    p.x = clamp(pos.x, 0, map.width);
+    p.y = clamp(pos.y, 0, map.height);
+    socket.broadcast.emit('player-moved', { id: socket.id, x: p.x, y: p.y });
+  });
+
+  // Verbatim relay of WebRTC offer/answer/ICE between two players.
+  socket.on('signal', (msg) => {
+    if (!msg || !players[msg.to] || !players[socket.id]) return;
+    io.to(msg.to).emit('signal', { from: socket.id, data: msg.data });
+  });
+
+  socket.on('disconnect', () => {
+    if (!players[socket.id]) return;
+    delete players[socket.id];
+    io.emit('player-left', socket.id);
+  });
+});
+
+const PORT = process.env.PORT || (secure ? 3443 : 3100);
+const scheme = secure ? 'https' : 'http';
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(scheme + '://localhost:' + PORT);
+  if (!secure) return console.log('(run ./make-cert.sh to let others on your LAN join)');
+  for (const list of Object.values(os.networkInterfaces())) {
+    for (const net of list) {
+      if (net.family === 'IPv4' && !net.internal) {
+        console.log('share: ' + scheme + '://' + net.address + ':' + PORT);
+      }
+    }
+  }
+});

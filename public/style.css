@@ -1,0 +1,80 @@
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #14161c;
+  color: #e8eaf0;
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+#stage { display: block; width: 100vw; height: 100vh; }
+
+#hud {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(20, 22, 28, 0.85);
+  border: 1px solid #2c3040;
+}
+
+#hud .hint { color: #8b90a0; }
+#peers { color: #9fe0b0; }
+
+button {
+  padding: 8px 14px;
+  border: 1px solid #3a4055;
+  border-radius: 8px;
+  background: #232838;
+  color: #e8eaf0;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover { background: #2c3243; }
+button.on { background: #7a2b2b; border-color: #a03c3c; }
+
+#gate {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(10, 11, 15, 0.92);
+}
+
+.card {
+  width: 340px;
+  padding: 28px;
+  border-radius: 14px;
+  background: #1b1e27;
+  border: 1px solid #2c3040;
+  text-align: center;
+}
+
+.card h1 { margin: 0 0 8px; font-size: 22px; }
+.card p { margin: 0 0 16px; color: #9096a8; }
+
+#name {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid #3a4055;
+  border-radius: 8px;
+  background: #12141b;
+  color: #e8eaf0;
+  font: inherit;
+}
+
+#join { width: 100%; background: #2f6f4f; border-color: #3d8b64; }
+#join:hover { background: #38845e; }
+
+.warn { margin-top: 16px !important; font-size: 12px; color: #c9a15a !important; }
+.error { margin: 12px 0 0 !important; color: #e07a6a !important; font-size: 13px; }
+
+[hidden] { display: none !important; }

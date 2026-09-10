@@ -1,0 +1,8 @@
+node_modules/
+
+# Self-signed cert for LAN testing: contains a private key, and is machine-specific.
+# Everyone generates their own with ./make-cert.sh
+certs/
+*.pem
+
+.DS_Store

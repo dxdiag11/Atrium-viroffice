@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atrium</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="stage"></canvas>
+
+<div id="hud" hidden>
+  <button id="mute" type="button">Mute mic</button>
+  <span id="peers">0 nearby</span>
+  <span class="hint">WASD / arrows to move &middot; E to sit &middot; ` for audio range</span>
+</div>
+
+<div id="gate">
+  <div class="card">
+    <h1>Atrium</h1>
+    <p>Walk close to someone to hear them. Walk away and they fade out.</p>
+    <input id="name" type="text" maxlength="16" placeholder="Your name" autocomplete="off">
+    <button id="join" type="button">Join with mic</button>
+    <p class="warn">Use headphones &mdash; two tabs on speakers will feed back.</p>
+    <p id="error" class="error" hidden></p>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="geom.js"></script>
+<script src="office.js"></script>
+<script src="office-svg.js"></script>
+<script src="rtc.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
