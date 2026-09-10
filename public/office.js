@@ -182,9 +182,19 @@ function buildOffice() {
     if (box) collisions.push(box(f));
   }
 
+  // A seat is a "workstation" if it sits right in front of a desk with a monitor.
+  // Those are the chairs that pop up the game menu when you sit down.
+  const clip = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const screens = OFFICE.furniture.filter((f) => f.type === 'desk' && f.screen);
+  const atMonitor = (x, y) => screens.some((d) => {
+    const dx = x - clip(x, d.x, d.x + d.w);
+    const dy = y - clip(y, d.y, d.y + d.h);
+    return Math.hypot(dx, dy) < 80;
+  });
+
   const seats = OFFICE.furniture
     .filter((f) => f.type === 'chair')
-    .map((f) => ({ x: f.x, y: f.y, dir: f.dir }));
+    .map((f) => ({ x: f.x, y: f.y, dir: f.dir, game: atMonitor(f.x, f.y) }));
 
   return { width, height, spawn, collisions, seats };
 }

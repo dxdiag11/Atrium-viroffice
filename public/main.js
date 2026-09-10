@@ -100,6 +100,7 @@ socket.on('player-seat', ({ id, seat, x, y }) => {
     p.ry = y;
     sentX = x; // the server already knows this position, don't echo it back
     sentY = y;
+    maybeArcade(p);
   }
 });
 
@@ -223,7 +224,63 @@ function stand(me, step = true) {
     }
   }
   socket.emit('stand', { x: me.x, y: me.y });
+  maybeArcade(me); // seat is null now -> closes the game menu
 }
+
+// --- desk games ----------------------------------------------------------------
+// Sit at a monitor -> pick a game -> it runs in an overlay, right inside the office.
+
+const GAMES = {
+  gaple:    { name: '🀄 Gaple',       port: 3200 },
+  tumble:   { name: '🏃 Tumble Rush', port: 3300 },
+  werewolf: { name: '🐺 Werewolf',    port: 3400 },
+};
+
+function gameUrl(port) {
+  const me = players[myId] || {};
+  const q = '?name=' + encodeURIComponent(me.name || '') + '&color=' + encodeURIComponent(me.color || '');
+  return location.protocol + '//' + location.hostname + ':' + port + '/' + q;
+}
+
+function maybeArcade(me) {
+  const seat = me && me.seat !== null ? map.seats[me.seat] : null;
+  const playing = !document.getElementById('gameframe').hidden;
+  document.getElementById('arcade').hidden = !(seat && seat.game && !playing);
+}
+
+function openGame(key) {
+  const g = GAMES[key];
+  if (!g) return;
+  const iframe = document.getElementById('gameframe-iframe');
+  document.getElementById('gameframe-hint').hidden = true;
+  document.getElementById('gameframe-title').textContent = g.name;
+  iframe.src = gameUrl(g.port);
+  iframe.onerror = () => { document.getElementById('gameframe-hint').hidden = false; };
+  document.getElementById('arcade').hidden = true;
+  document.getElementById('gameframe').hidden = false;
+  held.clear(); // so you are not still "walking" when you come back
+  if (held.has('t')) socket.emit('ptt-up');
+}
+
+function closeGame() {
+  document.getElementById('gameframe-iframe').src = 'about:blank';
+  document.getElementById('gameframe').hidden = true;
+  held.clear();
+  maybeArcade(players[myId]); // still seated -> show the menu again
+}
+
+for (const btn of document.querySelectorAll('#arcade [data-game]')) {
+  btn.addEventListener('click', () => openGame(btn.dataset.game));
+}
+document.getElementById('arcade-close').addEventListener('click', () => {
+  document.getElementById('arcade').hidden = true;
+});
+document.getElementById('gameframe-exit').addEventListener('click', closeGame);
+
+// A game running in the overlay can ask to be closed (its own "back to office" button).
+window.addEventListener('message', (e) => {
+  if (e.data === 'atrium:exit-game' && !document.getElementById('gameframe').hidden) closeGame();
+});
 
 function move(me, dt) {
   let dx = axis(['a', 'arrowleft'], ['d', 'arrowright']);

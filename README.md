@@ -5,8 +5,32 @@ walk away and it fades out.
 
 ```bash
 npm install
-npm start        # http://localhost:3100
+npm start          # http://localhost:3100  (office only)
+npm run start:all  # office + all desk games together
 ```
+
+## Desk games
+
+Sit on a chair that faces a monitor (reception desk, phone booths, the open-plan
+pods) and a **Main Game** menu pops up: **Gaple**, **Tumble Rush**, or **Werewolf**.
+Pick one and it runs in an overlay right inside the office — "✕ Keluar" drops you
+back at your desk.
+
+Each game is its own standalone server, unchanged from a plain `games/*` app:
+`gaple` :3200, `tumble` :3300, `werewolf` :3400. The office iframes them from
+`http://<host>:<port>/?name=…&color=…` (so your office name/colour carry in) and a
+game's own "back" button closes the overlay via `postMessage`. `npm run start:all`
+(see `scripts/run-all.js`) launches everything. Because the games are served over
+plain http, open the office at `http://localhost:3100` for the menu to work — an
+https LAN origin can't iframe an http game (mixed content).
+
+**Werewolf** (6–12 players) has no audio of its own: daytime discussion uses the
+office's proximity voice, which keeps running in the parent page while the game
+overlay is open. See `games/werewolf/README.md`.
+
+Which chairs count as workstations is derived in `public/office.js`: any `chair`
+within 80px of a `desk` marked `screen: true`. Move or add a monitor desk there and
+the game seats follow.
 
 ## Testing with someone else on your LAN
 

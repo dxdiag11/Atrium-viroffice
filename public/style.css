@@ -87,3 +87,85 @@ button.on { background: #7a2b2b; border-color: #a03c3c; }
 .error { margin: 12px 0 0 !important; color: #e07a6a !important; font-size: 13px; }
 
 [hidden] { display: none !important; }
+
+/* --- Game menu (shown when you sit at a workstation) --- */
+#arcade {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(10, 11, 15, 0.6);
+  z-index: 50;
+}
+
+.arcade-card {
+  width: 360px;
+  padding: 26px;
+  border-radius: 16px;
+  background: #1b1e27;
+  border: 1px solid #2c3040;
+  text-align: center;
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
+}
+
+.arcade-card h2 { margin: 0 0 6px; font-size: 20px; }
+.arcade-card > p { margin: 0 0 18px; color: #9096a8; }
+
+.arcade-choices {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.arcade-choices button {
+  padding: 14px;
+  font-size: 15px;
+  border-radius: 10px;
+  background: #232838;
+  border: 1px solid #3a4055;
+}
+.arcade-choices button:hover { background: #2f6f4f; border-color: #3d8b64; }
+.arcade-choices .emoji { font-size: 18px; margin-right: 6px; }
+
+.arcade-x { width: 100%; background: transparent; border-color: #2c3040; color: #8b90a0; }
+
+/* --- Full-screen game overlay --- */
+#gameframe {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: #14161c;
+}
+
+.gameframe-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  background: #1b1e27;
+  border-bottom: 1px solid #2c3040;
+}
+
+#gameframe-title { font-weight: 600; }
+#gameframe-exit { background: #7a2b2b; border-color: #a03c3c; }
+#gameframe-exit:hover { background: #8f3333; }
+
+#gameframe-iframe {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #14161c;
+}
+
+#gameframe-hint {
+  position: absolute;
+  left: 50%;
+  top: 55%;
+  transform: translateX(-50%);
+  color: #c9a15a;
+  font-size: 13px;
+}
+#gameframe-hint code { color: #e8eaf0; }
