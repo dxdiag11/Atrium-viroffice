@@ -116,4 +116,12 @@ function resolveRecipients(text, senderId, players) {
   return { scope: 'mention', ids, unknown: [] };
 }
 
-Object.assign(globalThis, { MAX_LEN, CHAT_LIMIT, HISTORY_MAX, normalizeText, makeBucket, uniqueName, parseMentions, resolveRecipients });
+// Autocomplete candidates for the text typed after an "@". Yourself excluded: mentioning
+// yourself only narrows who else sees the message.
+function matchNames(prefix, names, selfName) {
+  const needle = String(prefix || '').toLowerCase();
+  const self = String(selfName || '').toLowerCase();
+  return (names || []).filter((n) => n.toLowerCase() !== self && n.toLowerCase().startsWith(needle));
+}
+
+Object.assign(globalThis, { MAX_LEN, CHAT_LIMIT, HISTORY_MAX, normalizeText, makeBucket, uniqueName, parseMentions, resolveRecipients, matchNames, WORD_CHAR });

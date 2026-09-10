@@ -123,6 +123,7 @@ button.on { background: #7a2b2b; border-color: #a03c3c; }
 }
 
 #chat-compose {
+  position: relative;
   display: flex;
   gap: 8px;
   padding: 8px;
@@ -141,6 +142,26 @@ button.on { background: #7a2b2b; border-color: #a03c3c; }
 }
 
 #chat-send { padding: 8px 12px; }
+
+#chat-suggest {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: calc(100% - 4px);
+  max-height: 140px;
+  overflow-y: auto;
+  border: 1px solid #3a4055;
+  border-radius: 8px;
+  background: #12141b;
+}
+
+#chat-suggest div {
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+#chat-suggest div.active,
+#chat-suggest div:hover { background: #2c3243; }
 
 #gate {
   position: fixed;

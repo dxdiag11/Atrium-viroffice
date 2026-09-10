@@ -194,3 +194,16 @@ test('resolveRecipients routes by mention', () => {
   assert.deepStrictEqual(bad.unknown, ['Sarii']);
   assert.deepStrictEqual(bad.ids, []);
 });
+
+test('matchNames filters by prefix and drops yourself', () => {
+  const names = ['Sari', 'Budi', 'Sandi', 'sasa'];
+
+  assert.deepStrictEqual(matchNames('', names, 'Budi'), ['Sari', 'Sandi', 'sasa']);
+  assert.deepStrictEqual(matchNames('s', names, 'Budi'), ['Sari', 'Sandi', 'sasa']);
+  assert.deepStrictEqual(matchNames('SA', names, 'Budi'), ['Sari', 'Sandi', 'sasa']);
+  assert.deepStrictEqual(matchNames('sar', names, 'Budi'), ['Sari']);
+  assert.deepStrictEqual(matchNames('sar', names, 'Sari'), []); // yourself, case-insensitively
+  assert.deepStrictEqual(matchNames('z', names, 'Budi'), []);
+  assert.deepStrictEqual(matchNames('Budi Gant', names, 'Sari'), []);
+  assert.deepStrictEqual(matchNames('budi g', ['Budi Ganteng'], 'Sari'), ['Budi Ganteng']);
+});

@@ -216,7 +216,7 @@ mention ke diri sendiri, mention tidak dikenal.
 
 ---
 
-## M2 — Autocomplete `@` `[ ]`
+## M2 — Autocomplete `@` `[x]`
 
 **Depends on:** M1
 

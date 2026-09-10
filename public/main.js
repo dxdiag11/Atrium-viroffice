@@ -95,6 +95,7 @@ socket.on('players', (all, id, holder) => {
 socket.on('player-joined', (p) => {
   addPlayer(p);
   connectPeer(p.id);
+  refreshSuggest(); // an open @-list must show whoever just walked in
 });
 
 socket.on('player-seat', ({ id, seat, x, y }) => {
@@ -121,6 +122,7 @@ socket.on('player-moved', ({ id, x, y }) => {
 socket.on('player-left', (id) => {
   delete players[id];
   closePeer(id);
+  refreshSuggest();
 });
 
 socket.on('radio', ({ id, on }) => {

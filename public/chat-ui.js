@@ -5,6 +5,7 @@ const chatPanel = document.getElementById('chat');
 const chatLog = document.getElementById('chat-log');
 const chatInput = document.getElementById('chat-input');
 const chatToggle = document.getElementById('chat-toggle');
+const chatSuggest = document.getElementById('chat-suggest');
 
 // Only follow the tail when the reader is already there. Yanking the view down while
 // someone is scrolled up reading loses their place.
@@ -92,9 +93,85 @@ function renderMessage(msg) {
   return row;
 }
 
+// --- @ autocomplete ---------------------------------------------------------
+
+let suggestions = [];  // names currently offered
+let suggestAt = -1;    // index of the '@' being completed
+let suggestPick = 0;
+
+// The '@' whose token the caret sits in, or -1. Names may contain spaces, so the prefix
+// runs to the caret rather than stopping at the first one; a prefix that matches nobody
+// simply closes the list.
+function mentionStart() {
+  const before = chatInput.value.slice(0, chatInput.selectionStart);
+  const at = before.lastIndexOf('@');
+  if (at < 0) return -1;
+  if (at > 0 && WORD_CHAR.test(before[at - 1])) return -1;
+  return at;
+}
+
+function closeSuggest() {
+  suggestions = [];
+  suggestAt = -1;
+  chatSuggest.hidden = true;
+}
+
+function refreshSuggest() {
+  if (chatPanel.hidden || document.activeElement !== chatInput) return;
+  const at = mentionStart();
+  if (at < 0) return closeSuggest();
+
+  const me = players[myId];
+  const prefix = chatInput.value.slice(at + 1, chatInput.selectionStart);
+  const names = matchNames(prefix, playerNames(), me && me.name);
+  if (!names.length) return closeSuggest();
+
+  const previous = suggestions[suggestPick];
+  suggestions = names;
+  suggestAt = at;
+  suggestPick = Math.max(0, names.indexOf(previous)); // keep the highlight on roster churn
+  drawSuggest();
+}
+
+function drawSuggest() {
+  chatSuggest.textContent = '';
+  suggestions.forEach((name, i) => {
+    const item = document.createElement('div');
+    item.textContent = name; // a name is user input: text node only
+    if (i === suggestPick) item.className = 'active';
+    item.addEventListener('mousedown', (e) => {
+      e.preventDefault(); // keep focus in the input so the caret survives the click
+      complete(i);
+    });
+    chatSuggest.appendChild(item);
+  });
+  chatSuggest.hidden = false;
+}
+
+function complete(i) {
+  const name = suggestions[i];
+  if (!name) return;
+  const caret = chatInput.selectionStart;
+  const head = chatInput.value.slice(0, suggestAt) + '@' + name + ' ';
+  chatInput.value = head + chatInput.value.slice(caret);
+  chatInput.setSelectionRange(head.length, head.length);
+  closeSuggest();
+}
+
+function moveSuggest(step) {
+  suggestPick = (suggestPick + step + suggestions.length) % suggestions.length;
+  drawSuggest();
+}
+
+chatInput.addEventListener('input', refreshSuggest);
+chatInput.addEventListener('blur', closeSuggest);
+
+// --- composing --------------------------------------------------------------
+
 function sendChat() {
   const text = normalizeText(chatInput.value);
   chatInput.value = '';
+  closeSuggest();
   if (!text) return;
   socket.emit('chat', { text });
 }
@@ -120,6 +197,21 @@ document.getElementById('chat-send').addEventListener('click', () => {
 });
 
 chatInput.addEventListener('keydown', (e) => {
+  if (suggestions.length) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      return moveSuggest(e.key === 'ArrowDown' ? 1 : -1);
+    }
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      return complete(suggestPick);
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault(); // first Escape only closes the list, it does not leave chat
+      return closeSuggest();
+    }
+  }
+
   if (e.key === 'Enter') {
     e.preventDefault();
     sendChat();
@@ -130,4 +222,4 @@ chatInput.addEventListener('keydown', (e) => {
 
 chatInput.setAttribute('maxlength', String(MAX_LEN));
 
-Object.assign(globalThis, { addMessage, focusChat });
+Object.assign(globalThis, { addMessage, focusChat, refreshSuggest });
