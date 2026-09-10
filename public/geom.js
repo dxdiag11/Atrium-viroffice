@@ -28,6 +28,13 @@ function canMove(x, y, r, rects) {
   return true;
 }
 
+// Ease a raw mic reading toward the value drawn on screen. Fast attack, slow release:
+// speech starts abruptly and trails off, and a ring that tracks the raw signal both ways
+// just strobes.
+function smoothLevel(prev, raw) {
+  return prev + (raw - prev) * (raw > prev ? 0.5 : 0.12);
+}
+
 // Push `me` clear of everyone they overlap, and return the corrected position.
 //
 // Only the mover is moved: the other player is remote and cannot be shoved from here.
@@ -55,5 +62,5 @@ function separateFrom(x, y, others) {
 }
 
 Object.assign(globalThis, {
-  NEAR, FAR, RADIUS, RADIO_LEVEL, falloff, radioGain, canMove, separateFrom,
+  NEAR, FAR, RADIUS, RADIO_LEVEL, falloff, radioGain, canMove, separateFrom, smoothLevel,
 });

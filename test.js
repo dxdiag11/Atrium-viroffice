@@ -46,6 +46,22 @@ test('canMove blocks overlap, allows clearance', () => {
   assert.strictEqual(canMove(400, 400, r, walls), true);  // far away
 });
 
+test('smoothLevel attacks fast and releases slow', () => {
+  assert.strictEqual(smoothLevel(0, 0), 0);
+  assert.strictEqual(smoothLevel(0.5, 0.5), 0.5); // steady signal, steady ring
+
+  const rise = smoothLevel(0, 1) - 0;   // silence to full
+  const fall = 1 - smoothLevel(1, 0);   // full to silence
+  assert.ok(rise > fall, 'speech should snap on and trail off, not the reverse');
+
+  // Both directions stay inside the interval and converge on the raw value.
+  let v = 0;
+  for (let i = 0; i < 40; i++) v = smoothLevel(v, 0.8);
+  assert.ok(Math.abs(v - 0.8) < 0.01, 'did not converge upward, got ' + v);
+  for (let i = 0; i < 80; i++) v = smoothLevel(v, 0);
+  assert.ok(v < 0.01, 'did not decay to silence, got ' + v);
+});
+
 test('separateFrom leaves players who are not touching alone', () => {
   assert.deepStrictEqual(separateFrom(100, 100, []), [100, 100]);
   assert.deepStrictEqual(separateFrom(100, 100, [{ x: 400, y: 400 }]), [100, 100]);

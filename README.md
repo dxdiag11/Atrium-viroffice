@@ -26,6 +26,9 @@ that the origin counts as secure and the mic prompt appears as normal.
 Re-run `./make-cert.sh` whenever your LAN IP changes. macOS may ask to allow incoming
 connections for `node` the first time — allow it, or nobody can reach you.
 
+A green ring pulses around anyone who is speaking, including people too far away to
+hear -- that is the cue to walk over.
+
 Open two tabs, Join in both, allow the mic. **Use headphones** or the two tabs will
 feed back. Move with WASD / arrow keys. Press `` ` `` to draw the audio range rings. Press `Enter`
 to chat and `Escape` to get movement back.

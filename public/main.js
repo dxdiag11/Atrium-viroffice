@@ -9,6 +9,7 @@ const canvas = document.getElementById('stage');
 const ctx = canvas.getContext('2d');
 
 const players = {};     // id -> { id, name, color, x, y, rx, ry }
+const speaking = new Map(); // id -> smoothed mic level, 0..1, for the speaking ring
 const held = new Set();
 
 let myId = null;
@@ -121,6 +122,7 @@ socket.on('player-moved', ({ id, x, y }) => {
 
 socket.on('player-left', (id) => {
   delete players[id];
+  speaking.delete(id);
   closePeer(id);
   refreshSuggest();
 });
@@ -370,9 +372,23 @@ function draw(me) {
 }
 
 function drawPlayer(p, isSelf) {
+  // Speaking ring. Drawn for everyone, including people too far away to hear -- seeing
+  // someone talking across the floor is the cue to walk over.
+  const level = smoothLevel(speaking.get(p.id) || 0, micLevel(p.id));
+  speaking.set(p.id, level);
+
+  if (level > 0.06) {
+    ctx.beginPath();
+    ctx.arc(p.rx, p.ry, RADIUS + 5 + level * 8, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(126, 224, 160, ' + Math.min(0.9, 0.3 + level).toFixed(2) + ')';
+    ctx.lineWidth = 2 + level * 3;
+    ctx.stroke();
+  }
+
   if (p.id === radioHolder) {
     // Pulsing ring, so a voice on the radio always has a visible source on the map.
-    const pulse = RADIUS + 8 + Math.sin(performance.now() / 160) * 4;
+    // Sits outside the speaking ring so the two never sit on top of each other.
+    const pulse = RADIUS + 18 + Math.sin(performance.now() / 160) * 4;
     ctx.beginPath();
     ctx.arc(p.rx, p.ry, pulse, 0, Math.PI * 2);
     ctx.strokeStyle = '#e0956a';
