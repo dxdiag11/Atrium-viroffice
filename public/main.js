@@ -89,6 +89,7 @@ socket.on('players', (all, id, holder) => {
     const talker = players[radioHolder];
     showWalkie(talker ? talker.name : '', radioHolder === myId);
   }
+  document.getElementById('chat').hidden = false;
 });
 
 socket.on('player-joined', (p) => {
@@ -152,6 +153,8 @@ function renderRadio() {
   el.className = radioHolder ? 'live' : '';
   hud.classList.toggle('on-air', mine);
 }
+socket.on('chat', (msg) => addMessage(msg));
+socket.on('chat-history', (list) => (list || []).forEach(addMessage));
 
 socket.on('signal', ({ from, data }) => handleSignal(from, data));
 
@@ -168,6 +171,13 @@ function addPlayer(p) {
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
   const key = e.key.toLowerCase();
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    // Movement keys are only released by a keyup, and the input swallows nothing, but
+    // clearing here means a key held while jumping into chat can never stay stuck.
+    held.clear();
+    return focusChat();
+  }
   if (e.key === '`') showRange = !showRange;
   if (key === 'e' && players[myId]) toggleSit(players[myId]);
   // keydown repeats while a key is held, so ask the channel only on the first one.

@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 require('./public/geom.js');
+require('./public/chat-core.js');
 
 test('falloff boundaries', () => {
   assert.strictEqual(falloff(0), 1);
@@ -89,4 +90,40 @@ test('axis-separated move slides along a wall', () => {
 
   assert.strictEqual(x, 88);  // blocked
   assert.strictEqual(y, 125); // slid
+});
+
+// --- chat -------------------------------------------------------------------
+
+test('normalizeText trims, caps length, and rejects blanks', () => {
+  assert.strictEqual(normalizeText('  hi  '), 'hi');
+  assert.strictEqual(normalizeText(''), '');
+  assert.strictEqual(normalizeText('   '), '');
+  assert.strictEqual(normalizeText(undefined), '');
+  assert.strictEqual(normalizeText(42), '');
+
+  assert.strictEqual(normalizeText('a'.repeat(280)).length, 280);
+  assert.strictEqual(normalizeText('a'.repeat(281)).length, 280);
+  assert.strictEqual(normalizeText('  ' + 'a'.repeat(300) + '  '), 'a'.repeat(280));
+});
+
+test('makeBucket allows up to the limit, then refuses until the window passes', () => {
+  const bucket = makeBucket(3, 1000);
+
+  assert.strictEqual(bucket.take(0), true);
+  assert.strictEqual(bucket.take(10), true);
+  assert.strictEqual(bucket.take(20), true);
+  assert.strictEqual(bucket.take(30), false);
+  assert.strictEqual(bucket.take(999), false);
+
+  assert.strictEqual(bucket.take(1000), true); // first hit aged out
+  assert.strictEqual(bucket.take(1001), false); // hits at 10 and 20 still count
+  assert.strictEqual(bucket.take(1020), true);
+});
+
+test('uniqueName only suffixes on a clash, case-insensitively', () => {
+  assert.strictEqual(uniqueName('Budi', []), 'Budi');
+  assert.strictEqual(uniqueName('Budi', ['Sari']), 'Budi');
+  assert.strictEqual(uniqueName('Budi', ['Budi']), 'Budi (2)');
+  assert.strictEqual(uniqueName('Budi', ['budi']), 'Budi (2)');
+  assert.strictEqual(uniqueName('Budi', ['Budi', 'Budi (2)']), 'Budi (3)');
 });

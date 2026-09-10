@@ -64,6 +64,18 @@
   </svg>
 </div>
 
+<div id="chat" hidden>
+  <div id="chat-head">
+    <span>Chat</span>
+    <button id="chat-toggle" type="button">&minus;</button>
+  </div>
+  <div id="chat-log"></div>
+  <div id="chat-compose">
+    <input id="chat-input" type="text" placeholder="Say something&hellip;" autocomplete="off">
+    <button id="chat-send" type="button">Send</button>
+  </div>
+</div>
+
 <div id="gate">
   <div class="card">
     <h1>Atrium</h1>
@@ -81,6 +93,8 @@
 <script src="office-svg.js"></script>
 <script src="walkie.js"></script>
 <script src="rtc.js"></script>
+<script src="chat-core.js"></script>
+<script src="chat-ui.js"></script>
 <script src="main.js"></script>
 </body>
 </html>
