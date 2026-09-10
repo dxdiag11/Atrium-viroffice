@@ -45,29 +45,35 @@ test('canMove blocks overlap, allows clearance', () => {
   assert.strictEqual(canMove(400, 400, r, walls), true);  // far away
 });
 
-test('seated players are solid, standing ones are not', () => {
-  const sitter = { x: 300, y: 300, seat: 4 };
-  const stander = { x: 300, y: 300, seat: null };
+test('separateFrom leaves players who are not touching alone', () => {
+  assert.deepStrictEqual(separateFrom(100, 100, []), [100, 100]);
+  assert.deepStrictEqual(separateFrom(100, 100, [{ x: 400, y: 400 }]), [100, 100]);
 
-  // walking up to them from well clear
-  assert.strictEqual(seatedBlockers(200, 300, [stander]).length, 0);
-  assert.strictEqual(seatedBlockers(200, 300, [sitter]).length, 1);
-
-  const [rect] = seatedBlockers(200, 300, [sitter]);
-  assert.strictEqual(canMove(300, 300, RADIUS, [rect]), false); // cannot stand on them
-  assert.strictEqual(canMove(200, 300, RADIUS, [rect]), true);  // clear of them
+  // Exactly touching, not overlapping: nothing to fix.
+  assert.deepStrictEqual(separateFrom(100, 100, [{ x: 100 + RADIUS * 2, y: 100 }]), [100, 100]);
 });
 
-test('a seated player you are already inside does not trap you', () => {
-  // You were standing on an empty chair when someone else sat on it.
-  const sitter = { x: 300, y: 300, seat: 4 };
-  assert.deepStrictEqual(seatedBlockers(300, 300, [sitter]), []);
+test('separateFrom pushes an overlap out to exactly touching', () => {
+  const [x, y] = separateFrom(100, 100, [{ x: 110, y: 100 }]);
+  assert.strictEqual(Math.round(Math.hypot(x - 110, y - 100)), RADIUS * 2);
+  assert.ok(x < 100, 'pushed away from them, not towards');
+  assert.strictEqual(y, 100, 'a head-on overlap should not drift sideways');
+});
 
-  // Nudge out: still overlapping, still not blocking, so every direction stays open.
-  assert.deepStrictEqual(seatedBlockers(310, 300, [sitter]), []);
+test('separateFrom unstacks two players on the exact same pixel', () => {
+  const [x, y] = separateFrom(300, 300, [{ x: 300, y: 300 }]);
+  assert.strictEqual(Math.hypot(x - 300, y - 300), RADIUS * 2);
+});
 
-  // Once clear, they go solid again and you cannot walk back in.
-  assert.strictEqual(seatedBlockers(360, 300, [sitter]).length, 1);
+test('separateFrom resolves being squeezed by two players', () => {
+  const others = [
+    { x: 100 - 10, y: 100 },
+    { x: 100 + 10, y: 100 },
+  ];
+  const [x, y] = separateFrom(100, 100, others);
+  for (const p of others) {
+    assert.ok(Math.hypot(x - p.x, y - p.y) >= RADIUS * 2 - 0.001, 'still overlapping ' + p.x);
+  }
 });
 
 test('axis-separated move slides along a wall', () => {

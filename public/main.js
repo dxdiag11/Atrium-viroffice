@@ -231,7 +231,7 @@ function stand(me, step = true) {
     const [ox, oy] = STAND_OFFSET[seat.dir] || [0, 44];
     const nx = clamp(me.x + ox, RADIUS, map.width - RADIUS);
     const ny = clamp(me.y + oy, RADIUS, map.height - RADIUS);
-    if (canMove(nx, ny, RADIUS, solidsAround(me))) {
+    if (canMove(nx, ny, RADIUS, map.collisions)) {
       me.x = nx;
       me.y = ny;
     }
@@ -251,23 +251,32 @@ function move(me, dt) {
     dy *= inv;
   }
   const step = SPEED * dt;
-  const walls = solidsAround(me);
 
   // Axis-separated so hitting a wall on one axis still allows sliding on the other.
   const nx = clamp(me.x + dx * step, RADIUS, map.width - RADIUS);
-  if (canMove(nx, me.y, RADIUS, walls)) me.x = nx;
+  if (canMove(nx, me.y, RADIUS, map.collisions)) me.x = nx;
 
   const ny = clamp(me.y + dy * step, RADIUS, map.height - RADIUS);
-  if (canMove(me.x, ny, RADIUS, walls)) me.y = ny;
+  if (canMove(me.x, ny, RADIUS, map.collisions)) me.y = ny;
 }
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-// Walls, furniture, and anyone currently sitting down.
-function solidsAround(me) {
+// Runs every frame, not just when you press a key: someone can walk into you while you
+// are standing still, and you should be the one who gives way.
+function separate(me) {
+  if (me.seat !== null) return; // someone sitting is furniture, they do not get shoved
+
   const others = Object.values(players).filter((p) => p.id !== me.id);
-  const bodies = seatedBlockers(me.x, me.y, others);
-  return bodies.length ? map.collisions.concat(bodies) : map.collisions;
+  const [px, py] = separateFrom(me.x, me.y, others);
+  if (px === me.x && py === me.y) return;
+
+  // Axis by axis, and never into a wall: being pushed should slide you along the wall,
+  // not through it.
+  const nx = clamp(px, RADIUS, map.width - RADIUS);
+  const ny = clamp(py, RADIUS, map.height - RADIUS);
+  if (canMove(nx, me.y, RADIUS, map.collisions)) me.x = nx;
+  if (canMove(me.x, ny, RADIUS, map.collisions)) me.y = ny;
 }
 
 // --- loop ------------------------------------------------------------------
@@ -281,6 +290,7 @@ function frame(now) {
   const me = players[myId];
   if (me) {
     move(me, dt);
+    separate(me);
     me.rx = me.x;
     me.ry = me.y;
 

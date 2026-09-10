@@ -28,22 +28,32 @@ function canMove(x, y, r, rects) {
   return true;
 }
 
-// Seated players are solid. Collision boxes for the ones that should block a mover
-// standing at (x, y) -- pass everyone except the mover.
+// Push `me` clear of everyone they overlap, and return the corrected position.
 //
-// A body the mover is ALREADY inside is skipped on purpose. You can stand on an empty
-// chair, and someone else can then sit on it; without this the two of you overlap, every
-// direction is blocked, and the standing one is trapped inside the seated one forever.
-function seatedBlockers(x, y, others) {
-  const out = [];
+// Only the mover is moved: the other player is remote and cannot be shoved from here.
+// Both clients run this against each other every frame, so a head-on collision
+// separates from both sides and converges instead of one player winning.
+function separateFrom(x, y, others) {
+  const min = RADIUS * 2;
+
   for (const p of others) {
-    if (p.seat === null || p.seat === undefined) continue;
-    const rect = [p.x - RADIUS, p.y - RADIUS, RADIUS * 2, RADIUS * 2];
-    if (canMove(x, y, RADIUS, [rect])) out.push(rect);
+    let dx = x - p.x;
+    let dy = y - p.y;
+    let dist = Math.hypot(dx, dy);
+    if (dist >= min) continue;
+
+    // Exactly stacked gives no direction to push along, so pick one.
+    if (dist < 0.001) {
+      x += min;
+      continue;
+    }
+    const push = (min - dist) / dist;
+    x += dx * push;
+    y += dy * push;
   }
-  return out;
+  return [x, y];
 }
 
 Object.assign(globalThis, {
-  NEAR, FAR, RADIUS, RADIO_LEVEL, falloff, radioGain, canMove, seatedBlockers,
+  NEAR, FAR, RADIUS, RADIO_LEVEL, falloff, radioGain, canMove, separateFrom,
 });

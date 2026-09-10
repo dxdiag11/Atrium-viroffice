@@ -41,8 +41,13 @@ a shape function to `SHAPES` there, and an entry to `SOLID` in `office.js` if pe
 should not be able to walk through it.
 
 Sitting: walk onto a chair and press `E`. Pressing `E` again, or any movement key, gets
-you back up. One person per chair, and a seated person is solid -- nobody can walk
-through or stand on top of them. Standing players still pass through each other.
+you back up. One person per chair.
+
+Players are solid. Overlaps are resolved by pushing apart rather than by blocking, so
+walking into someone at an angle slides you around them instead of wedging you. Both
+clients push away from each other, which is why a head-on meeting separates evenly. A
+seated player is the exception: they never get shoved out of their chair, everyone else
+gives way around them. Nobody is ever pushed through a wall.
 
 ## Swapping in the real map
 
