@@ -77,6 +77,27 @@ button.on { background: #7a2b2b; border-color: #a03c3c; }
   color: #9096a8;
 }
 
+#chat-head .spacer { flex: 1; }
+
+#chat-badge {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #3a4055;
+  color: #e8eaf0;
+  font-size: 11px;
+  text-align: center;
+}
+
+#chat-badge.mention { background: #d8a13a; color: #1b1e27; }
+
+#chat-bell {
+  padding: 2px 8px;
+  line-height: 1.2;
+}
+
+#chat-bell.off { opacity: 0.5; }
+
 #chat-toggle {
   padding: 2px 10px;
   line-height: 1.2;

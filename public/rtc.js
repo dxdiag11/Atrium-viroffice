@@ -71,6 +71,12 @@ function playSquelch(open) {
   src.stop(now + dur + 0.02);
 }
 
+// Chat's notification tone shares this context: it only exists after the Join gesture,
+// which is exactly when chat starts too.
+function getAudioCtx() {
+  return audioCtx;
+}
+
 function setSelfId(id) {
   selfId = id;
 }

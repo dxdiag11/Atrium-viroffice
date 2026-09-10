@@ -27,7 +27,8 @@ Re-run `./make-cert.sh` whenever your LAN IP changes. macOS may ask to allow inc
 connections for `node` the first time — allow it, or nobody can reach you.
 
 Open two tabs, Join in both, allow the mic. **Use headphones** or the two tabs will
-feed back. Move with WASD / arrow keys. Press `` ` `` to draw the audio range rings.
+feed back. Move with WASD / arrow keys. Press `` ` `` to draw the audio range rings. Press `Enter`
+to chat and `Escape` to get movement back.
 
 ## The office
 
@@ -88,4 +89,6 @@ The filter shape and squelch live in `attachAudio` and `playSquelch` in
 
 WebRTC mesh, no SFU — every peer connects to every other peer, which is fine up to
 roughly 6-8 people in the room. No TURN server, so this works on localhost and a LAN
-but not across arbitrary NATs. Voice only: no video, chat, or screen share.
+but not across arbitrary NATs. Text chat is global by default; `@name` narrows a message to just the people named
+(server-side, so nobody else receives it). No video, screen share, or persistence --
+chat history lives in memory and is gone on restart.

@@ -156,7 +156,7 @@ function renderRadio() {
   hud.classList.toggle('on-air', mine);
 }
 socket.on('chat', (msg) => addMessage(msg));
-socket.on('chat-history', (list) => (list || []).forEach(addMessage));
+socket.on('chat-history', addHistory);
 
 socket.on('signal', ({ from, data }) => handleSignal(from, data));
 

@@ -67,6 +67,13 @@ function remember(msg) {
   if (messages.length > HISTORY_MAX) messages.shift();
 }
 
+// Join and leave notices are global chat, so they belong in history like any other.
+function announce(text) {
+  const msg = makeMessage({ scope: 'system', text });
+  remember(msg);
+  io.emit('chat', msg);
+}
+
 // A warning only the sender sees: never throw and never disconnect over chat input.
 function warn(socket, text) {
   socket.emit('chat', makeMessage({ scope: 'system', text }));
@@ -89,6 +96,7 @@ io.on('connection', (socket) => {
     socket.emit('players', players, socket.id, radio);
     socket.emit('chat-history', messages);
     socket.broadcast.emit('player-joined', players[socket.id]);
+    announce(name + ' masuk');
   });
 
   socket.on('chat', (payload) => {
@@ -186,8 +194,10 @@ io.on('connection', (socket) => {
     if (radio === socket.id) releaseRadio(io);
     delete buckets[socket.id];
     if (!players[socket.id]) return;
+    const { name } = players[socket.id];
     delete players[socket.id];
     io.emit('player-left', socket.id);
+    announce(name + ' keluar');
   });
 });
 

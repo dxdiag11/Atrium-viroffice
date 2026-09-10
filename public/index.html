@@ -13,7 +13,7 @@
   <button id="mute" type="button">Mute mic</button>
   <span id="peers">0 nearby</span>
   <span id="radio">hold T to talk</span>
-  <span class="hint">WASD / arrows &middot; E to sit &middot; hold T to talk &middot; ` for range</span>
+  <span class="hint">WASD / arrows &middot; E to sit &middot; Enter to chat &middot; hold T to talk &middot; ` for range</span>
 </div>
 
 <div id="walkie" aria-hidden="true">
@@ -67,6 +67,9 @@
 <div id="chat" hidden>
   <div id="chat-head">
     <span>Chat</span>
+    <span id="chat-badge" hidden>0</span>
+    <span class="spacer"></span>
+    <button id="chat-bell" type="button" title="Notification sound">&#128276;</button>
     <button id="chat-toggle" type="button">&minus;</button>
   </div>
   <div id="chat-log"></div>

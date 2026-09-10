@@ -247,7 +247,7 @@ tanpa diri sendiri, prefix kosong mengembalikan semua, tidak ada yang cocok meng
 
 ---
 
-## M3 — Unread badge + system message `[ ]`
+## M3 — Unread badge + system message `[x]`
 
 **Depends on:** M0
 
@@ -300,5 +300,14 @@ menambah channel nanti tidak membongkar apa pun.
 Tulis temuan di luar scope ticket di sini (bug lama, ide, utang teknis) supaya tidak
 dikerjakan diam-diam di tengah ticket.
 
+- Semua `<script>` berbagi satu scope global, jadi nama fungsi top-level bisa saling
+  menimpa tanpa error. `setMuted` di `rtc.js` (mic) hampir tertimpa mute notifikasi
+  chat; sekarang namanya `setChatMuted`. Kalau nanti menambah file, cek dulu nama
+  top-level-nya belum dipakai file lain.
+- Verifikasi manual 3 tab di browser belum dijalankan (ekstensi browser tidak tersedia
+  di sesi ini). Yang sudah diverifikasi: unit test, plus skrip di luar repo yang
+  menjalankan server sungguhan lewat websocket (routing mention, history, rate limit,
+  dedupe nama) dan yang menjalankan `chat-ui.js` di atas DOM tiruan (autocomplete,
+  badge, render). Tampilan/CSS-nya sendiri belum pernah dilihat mata.
 - Chat lewat socket.io, bukan WebRTC data channel. Disengaja: mesh WebRTC di `rtc.js` hanya
   untuk audio dan mati di NAT tanpa TURN, sementara socket.io pasti terhubung untuk semua.
