@@ -15,7 +15,6 @@ let myId = null;
 let map = null;
 let background = null;
 let showRange = false;
-let seated = null;      // index into map.seats, or null when standing
 let lastSent = 0;
 let sentX = null;
 let sentY = null;
@@ -87,6 +86,20 @@ socket.on('player-joined', (p) => {
   connectPeer(p.id);
 });
 
+socket.on('player-seat', ({ id, seat, x, y }) => {
+  const p = players[id];
+  if (!p) return;
+  p.seat = seat;
+  p.x = x;
+  p.y = y;
+  if (id === myId) {
+    p.rx = x;
+    p.ry = y;
+    sentX = x; // the server already knows this position, don't echo it back
+    sentY = y;
+  }
+});
+
 socket.on('player-moved', ({ id, x, y }) => {
   const p = players[id];
   if (!p) return;
@@ -142,35 +155,40 @@ function nearestSeat(me) {
   return best;
 }
 
+const seatTaken = (i) => Object.values(players).some((p) => p.seat === i);
+
 function toggleSit(me) {
-  if (seated !== null) return stand(me);
+  if (me.seat !== null) return stand(me);
   const i = nearestSeat(me);
-  if (i < 0) return;
-  seated = i;
-  me.x = map.seats[i].x;
-  me.y = map.seats[i].y;
+  if (i < 0 || seatTaken(i)) return;
+  // The server decides: it is the only one that can see the other person reaching for
+  // the same chair. We sit when 'player-seat' comes back.
+  socket.emit('sit', i);
 }
 
 // step=false when you walk out of the chair: you are already moving, so pushing you
 // backwards first would visibly jerk you the wrong way.
 function stand(me, step = true) {
-  const seat = map.seats[seated];
-  seated = null;
-  if (!step) return;
-  const [ox, oy] = STAND_OFFSET[seat.dir] || [0, 44];
-  const nx = clamp(me.x + ox, RADIUS, map.width - RADIUS);
-  const ny = clamp(me.y + oy, RADIUS, map.height - RADIUS);
-  if (canMove(nx, ny, RADIUS, map.collisions)) {
-    me.x = nx;
-    me.y = ny;
+  const seat = map.seats[me.seat];
+  me.seat = null; // standing always succeeds, so don't wait for the round trip
+
+  if (step) {
+    const [ox, oy] = STAND_OFFSET[seat.dir] || [0, 44];
+    const nx = clamp(me.x + ox, RADIUS, map.width - RADIUS);
+    const ny = clamp(me.y + oy, RADIUS, map.height - RADIUS);
+    if (canMove(nx, ny, RADIUS, map.collisions)) {
+      me.x = nx;
+      me.y = ny;
+    }
   }
+  socket.emit('stand', { x: me.x, y: me.y });
 }
 
 function move(me, dt) {
   let dx = axis(['a', 'arrowleft'], ['d', 'arrowright']);
   let dy = axis(['w', 'arrowup'], ['s', 'arrowdown']);
   if (!dx && !dy) return;
-  if (seated !== null) stand(me, false); // walking away from a chair gets you out of it
+  if (me.seat !== null) stand(me, false); // walking away from a chair gets you out of it
 
   if (dx && dy) {
     const inv = Math.SQRT1_2; // keep diagonals the same speed as straight lines
@@ -251,11 +269,13 @@ function draw(me) {
 
   for (const p of Object.values(players)) drawPlayer(p, p.id === myId);
 
-  const hint = seated !== null ? 'E to stand' : nearestSeat(me) >= 0 ? 'E to sit' : null;
+  const near = nearestSeat(me);
+  const hint =
+    me.seat !== null ? 'E to stand' : near < 0 ? null : seatTaken(near) ? 'taken' : 'E to sit';
   if (hint) {
     ctx.font = '600 12px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#9fe0b0';
+    ctx.fillStyle = hint === 'taken' ? '#e0956a' : '#9fe0b0';
     ctx.fillText(hint, me.x, me.y + RADIUS + 20);
   }
 

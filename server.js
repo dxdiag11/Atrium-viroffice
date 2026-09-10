@@ -16,7 +16,7 @@ app.use(express.static(__dirname + '/public'));
 // and this switches to https automatically.
 const key = __dirname + '/certs/key.pem';
 const cert = __dirname + '/certs/cert.pem';
-const secure = fs.existsSync(key) && fs.existsSync(cert);
+const secure = !process.env.NO_TLS && fs.existsSync(key) && fs.existsSync(cert);
 
 const server = secure
   ? https.createServer({ key: fs.readFileSync(key), cert: fs.readFileSync(cert) }, app)
@@ -40,6 +40,7 @@ io.on('connection', (socket) => {
       color: COLORS[colorIndex++ % COLORS.length],
       x: clamp(map.spawn.x + (Math.random() - 0.5) * 120, 0, map.width),
       y: clamp(map.spawn.y + (Math.random() - 0.5) * 120, 0, map.height),
+      seat: null,
     };
     socket.emit('players', players, socket.id);
     socket.broadcast.emit('player-joined', players[socket.id]);
@@ -48,9 +49,37 @@ io.on('connection', (socket) => {
   socket.on('move', (pos) => {
     const p = players[socket.id];
     if (!p || !pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return;
+    if (p.seat !== null) return; // seated players are parked on their chair
     p.x = clamp(pos.x, 0, map.width);
     p.y = clamp(pos.y, 0, map.height);
     socket.broadcast.emit('player-moved', { id: socket.id, x: p.x, y: p.y });
+  });
+
+  // The server owns who is sitting where: two people clicking the same chair at the
+  // same time both reach here, and only the first one gets it.
+  const seatTaken = (i) => Object.values(players).some((q) => q.seat === i);
+
+  socket.on('sit', (i) => {
+    const p = players[socket.id];
+    if (!p || p.seat !== null) return;
+    if (!Number.isInteger(i) || i < 0 || i >= map.seats.length) return;
+    if (seatTaken(i)) return socket.emit('seat-denied', i);
+
+    p.seat = i;
+    p.x = map.seats[i].x;
+    p.y = map.seats[i].y;
+    io.emit('player-seat', { id: socket.id, seat: i, x: p.x, y: p.y });
+  });
+
+  socket.on('stand', (pos) => {
+    const p = players[socket.id];
+    if (!p || p.seat === null) return;
+    p.seat = null;
+    if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
+      p.x = clamp(pos.x, 0, map.width);
+      p.y = clamp(pos.y, 0, map.height);
+    }
+    io.emit('player-seat', { id: socket.id, seat: null, x: p.x, y: p.y });
   });
 
   // Verbatim relay of WebRTC offer/answer/ICE between two players.

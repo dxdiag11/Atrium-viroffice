@@ -22,6 +22,7 @@ Send them the `share:` link that `npm start` prints. The cert is self-signed, so
 of you get a "Your connection is not private" page once: **Advanced -> Proceed**. After
 that the origin counts as secure and the mic prompt appears as normal.
 
+`NO_TLS=1 npm start` goes back to plain http on 3100 without deleting the cert.
 Re-run `./make-cert.sh` whenever your LAN IP changes. macOS may ask to allow incoming
 connections for `node` the first time — allow it, or nobody can reach you.
 
