@@ -82,6 +82,13 @@ socket.on('players', (all, id, holder) => {
   document.getElementById('gate').hidden = true;
   document.getElementById('hud').hidden = false;
   renderRadio();
+
+  // Someone may already be mid-transmission when we walk in: the 'radio' event that
+  // raises the handset fired before we were here to hear it.
+  if (radioHolder) {
+    const talker = players[radioHolder];
+    showWalkie(talker ? talker.name : '', radioHolder === myId);
+  }
 });
 
 socket.on('player-joined', (p) => {

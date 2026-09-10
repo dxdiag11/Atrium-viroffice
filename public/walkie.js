@@ -31,7 +31,9 @@ function showWalkie(name, mine) {
   walkieEl.classList.add('show');
   walkieEl.classList.toggle('tx', mine);
   walkieEl.querySelector('.mode').textContent = mine ? 'TX' : 'RX';
-  walkieEl.querySelector('.who').textContent = (mine ? 'you' : name || '??').slice(0, 10).toUpperCase();
+  // Always the talker's nickname, yours included: TX and the red trim already say the
+  // handset is yours, and a name is what makes a screenshot readable.
+  walkieEl.querySelector('.who').textContent = (name || '??').slice(0, 10).toUpperCase();
 }
 
 function hideWalkie() {
