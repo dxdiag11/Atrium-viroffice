@@ -91,4 +91,5 @@ WebRTC mesh, no SFU — every peer connects to every other peer, which is fine u
 roughly 6-8 people in the room. No TURN server, so this works on localhost and a LAN
 but not across arbitrary NATs. Text chat is global by default; `@name` narrows a message to just the people named
 (server-side, so nobody else receives it). No video, screen share, or persistence --
-chat history lives in memory and is gone on restart.
+chat history lives in memory, and is wiped both on restart and the moment the last
+person leaves the office.

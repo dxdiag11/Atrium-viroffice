@@ -42,6 +42,9 @@ function releaseRadio(io) {
 }
 // Chat lives in memory only: a restart wipes it, on purpose. Mention messages are never
 // pushed here, otherwise a late joiner would read other people's private messages.
+// Chat lives in memory only: a restart wipes it, and so does the room emptying out.
+// Mention messages are never pushed here, otherwise a late joiner would read other
+// people's private messages.
 const messages = [];
 const buckets = {}; // socket id -> rate limiter
 let msgSeq = 0;
@@ -198,6 +201,11 @@ io.on('connection', (socket) => {
     delete players[socket.id];
     io.emit('player-left', socket.id);
     announce(name + ' keluar');
+
+    // Nobody left in the office: the conversation is over, so the next person to walk
+    // in starts on a blank log instead of reading a stranger's backlog. Ids keep
+    // counting up, since they are only promised to be unique per server run.
+    if (!Object.keys(players).length) messages.length = 0;
   });
 });
 

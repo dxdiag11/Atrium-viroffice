@@ -309,5 +309,10 @@ dikerjakan diam-diam di tengah ticket.
   menjalankan server sungguhan lewat websocket (routing mention, history, rate limit,
   dedupe nama) dan yang menjalankan `chat-ui.js` di atas DOM tiruan (autocomplete,
   badge, render). Tampilan/CSS-nya sendiri belum pernah dilihat mata.
+- Di luar M0-M3, atas permintaan: history global dikosongkan begitu orang terakhir
+  keluar (`server.js`, handler `disconnect`). Konsekuensinya, kalau kamu sendirian lalu
+  me-refresh halaman, log ikut hilang — sepersekian detik itu ruangannya memang kosong.
+  Kalau ini mengganggu, obatnya jeda beberapa detik sebelum menghapus, bukan mengubah
+  syaratnya.
 - Chat lewat socket.io, bukan WebRTC data channel. Disengaja: mesh WebRTC di `rtc.js` hanya
   untuk audio dan mati di NAT tanpa TURN, sementara socket.io pasti terhubung untuk semua.
