@@ -31,23 +31,42 @@ feed back. Move with WASD / arrow keys. Press `` ` `` to draw the audio range ri
 
 ## The office
 
-`public/office.js` is the whole floor plan as data: rooms (with their doorways),
-furniture, and where the chairs face. Walls you collide with, chairs you can sit on, and
-the SVG that gets drawn are all derived from it, so there is nothing to keep in sync --
-move a desk in that file and the collision box moves with it.
+The background is `assets/maps/atrium-cave-office.png`, served directly at
+`/assets/maps/atrium-cave-office.png`. Its world coordinates are 1499 × 1049 pixels.
+`public/office.js` defines the cave's walkable floor polygons, bridge crossings,
+furniture collision rectangles, reception spawn, and 51 interactive seats in those
+same coordinates. Both server and client use this model. Rocks, water and solid
+furniture block movement; the server also checks the path of incoming moves.
 
-`public/office-svg.js` turns that data into the SVG. Add a new furniture type by adding
-a shape function to `SHAPES` there, and an entry to `SOLID` in `office.js` if people
-should not be able to walk through it.
+The camera follows the player and centers the map on larger screens. The old
+`office-svg.js` renderer is no longer loaded by the application.
 
 Sitting: walk onto a chair and press `E`. Pressing `E` again, or any movement key, gets
 you back up.
 
-## Swapping in the real map
+## Characters
 
-Drop the artwork at `public/assets/map.png` and it replaces the generated SVG as the
-background. The collision boxes still come from `office.js`, so update the room and
-furniture coordinates there to line up with the art.
+Before joining, choose one of the ten characters from `assets/characters/` and enter
+your name. The browser remembers the last joined choice. `public/characters.js`
+contains the shared character allowlist; the server validates and includes the chosen
+ID in player snapshots so other participants see the same character.
+
+`public/sprites.js` uses `move.png` for idle/walking and `sit-talk.png` for seated and
+speaking gestures. Each image is sliced proportionally into four columns and three
+rows using its actual size, supporting both supplied export dimensions without
+rewriting the assets. Nearby voice and walkie-talkie still use the existing WebRTC
+mesh; a microphone energy meter publishes only a speaking boolean for animation.
+
+Asset limitations: the supplied sheets have no back-facing row, so moving/facing up
+uses the front row. Some walk poses and character scales still need art cleanup.
+`male-001/sit-talk.png` has been cleaned locally into a transparent RGBA sheet;
+its seated/speaking poses are enabled. Its original export is backed up in
+`output/implementation/male-001-sit-talk-original.png`. Other seated sheets include
+chairs; these are rendered over the chairs in the flat map artwork.
+
+Run `npm test` for map reachability, collision/path checks, character asset coverage,
+sprite slicing and existing spatial-audio math tests. Browser smoke testing was also
+performed with two clients and synthetic microphones (not a real LAN audio-quality test).
 
 ## Walkie-talkie
 

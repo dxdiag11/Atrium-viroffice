@@ -1,192 +1,74 @@
-// The Atrium floor plan, as data. Everything else is derived from this: the SVG that gets drawn,
-// the walls you bump into, and the chairs you can sit on. Edit here, not in two places.
-
-const WALL = 20;      // interior partition thickness
-const SHELL = 24;     // outer building wall thickness
-
-const PALETTE = {
-  floor: '#3b4152',
-  grout: '#353b4a',
-  shell: '#5c6580',
-  wall: '#525b73',
-  wallTop: '#69738f',
-  desk: '#8a6b4f',
-  deskTop: '#a07f5e',
-  screen: '#2b3040',
-  chair: '#59627d',
-  chairBack: '#464e66',
-  sofa: '#6b5470',
-  counter: '#7a8296',
-  rug: '#4a5068',
-  plantPot: '#8a5a44',
-  plant: '#4f8a5c',
-  table: '#8a6b4f',
-  label: '#aeb6cc',
-};
-
+// Coordinates match assets/maps/atrium-cave-office.png (1499 × 1049).
+// Shared walkable polygons connect across doors and bridges; outside is rock/water.
 const OFFICE = {
-  width: 2000,
-  height: 1400,
-  spawn: { x: 620, y: 470 },
-
-  rooms: [
-    { name: 'Reception', x: 24, y: 24, w: 460, h: 400, tint: '#434a5e',
-      doors: { east: [250, 350] } },
-    { name: 'Board Room', x: 760, y: 24, w: 620, h: 400, tint: '#464e63',
-      doors: { south: [1020, 1120] } },
-    { name: 'Booth 1', x: 1660, y: 24, w: 316, h: 190, tint: '#414859',
-      doors: { west: [110, 180] } },
-    { name: 'Booth 2', x: 1660, y: 234, w: 316, h: 190, tint: '#414859',
-      doors: { west: [320, 390] } },
-    { name: 'Focus Room', x: 24, y: 560, w: 460, h: 440, tint: '#3f4759',
-      doors: { east: [760, 860] } },
-    { name: 'Pantry', x: 1400, y: 980, w: 576, h: 396, tint: '#474f60',
-      doors: { north: [1600, 1700], west: [1150, 1250] } },
+  width:1499, height:1049, image:'/assets/maps/atrium-cave-office.png',
+  spawn:{x:748,y:910},
+  walkable:[
+    [[406,265],[489,266],[510,206],[585,210],[631,254],[976,253],[1025,212],[1093,232],[1158,281],[1094,326],[1094,650],[1038,699],[1050,832],[1003,920],[854,952],[837,1049],[649,1049],[649,942],[509,924],[469,872],[456,716],[407,661],[396,472],[404,397],[361,303]],
+    // Library and south door.
+    [[234,67],[413,63],[463,94],[463,206],[427,222],[401,227],[401,281],[341,281],[341,222],[268,220],[228,184]],
+    // Meeting room and south door.
+    [[643,47],[970,46],[1003,92],[1003,200],[965,223],[877,224],[877,270],[733,270],[733,224],[651,220],[621,179],[624,99]],
+    // Creative studio.
+    [[1157,80],[1397,74],[1445,126],[1444,228],[1396,266],[1228,266],[1179,244],[1140,226],[1091,232],[1091,198],[1120,187]],
+    [[1075,213],[1131,214],[1197,263],[1158,295],[1080,254]],
+    // Lounge and stream bridge.
+    [[69,329],[241,331],[296,370],[306,461],[276,500],[140,521],[69,483]],
+    [[282,390],[410,399],[402,457],[287,445]],
+    // Kitchen / cafe, eastern doorway.
+    [[78,593],[283,591],[345,609],[375,658],[411,687],[455,704],[471,742],[415,771],[406,849],[350,889],[142,894],[78,854],[59,789],[61,659]],
+    // Focus booths.
+    [[1080,357],[1173,338],[1221,350],[1235,427],[1134,442],[1090,418]],
+    [[1080,485],[1173,479],[1225,478],[1235,570],[1135,588],[1090,560]],
+    // Waterfall bridge and observation deck.
+    [[1041,704],[1091,666],[1220,786],[1170,829]],
+    [[1016,693],[1070,657],[1110,703],[1051,750]],
+    [[1170,776],[1319,776],[1330,827],[1319,860],[1207,863],[1160,824]],
   ],
-
-  furniture: [
-    // --- Reception ---
-    { type: 'rug', x: 70, y: 55, w: 250, h: 110 },
-    { type: 'sofa', x: 90, y: 70, w: 210, h: 70 },
-    { type: 'desk', x: 120, y: 240, w: 280, h: 64, screen: true },
-    { type: 'chair', x: 260, y: 190, dir: 'down' },
-    { type: 'plant', x: 430, y: 90 },
-    { type: 'plant', x: 430, y: 380 },
-
-    // --- Board Room ---
-    { type: 'whiteboard', x: 940, y: 34, w: 260, h: 14 },
-    { type: 'desk', x: 880, y: 150, w: 380, h: 140 },
-    { type: 'chair', x: 950, y: 115, dir: 'down' },
-    { type: 'chair', x: 1070, y: 115, dir: 'down' },
-    { type: 'chair', x: 1190, y: 115, dir: 'down' },
-    { type: 'chair', x: 950, y: 325, dir: 'up' },
-    { type: 'chair', x: 1070, y: 325, dir: 'up' },
-    { type: 'chair', x: 1190, y: 325, dir: 'up' },
-    { type: 'chair', x: 845, y: 220, dir: 'right' },
-    { type: 'chair', x: 1295, y: 220, dir: 'left' },
-    { type: 'plant', x: 1330, y: 370 },
-
-    // --- Phone booths ---
-    { type: 'desk', x: 1700, y: 90, w: 150, h: 50, screen: true },
-    { type: 'chair', x: 1775, y: 165, dir: 'up' },
-    { type: 'desk', x: 1700, y: 300, w: 150, h: 50, screen: true },
-    { type: 'chair', x: 1775, y: 375, dir: 'up' },
-
-    // --- Focus Room ---
-    { type: 'bookshelf', x: 40, y: 620, w: 44, h: 220 },
-    { type: 'rug', x: 140, y: 640, w: 260, h: 200 },
-    { type: 'round', x: 268, y: 740, r: 42 },
-    { type: 'chair', x: 180, y: 740, dir: 'right' },
-    { type: 'chair', x: 356, y: 740, dir: 'left' },
-    { type: 'plant', x: 430, y: 950 },
-
-    // --- Open workspace: four pods, two desks back to back each ---
-    ...pod(660, 580), ...pod(1060, 580), ...pod(660, 840), ...pod(1060, 840),
-    { type: 'plant', x: 980, y: 520 },
-    { type: 'plant', x: 980, y: 1000 },
-
-    // --- Collab corner: soft seating between the pods and the east wall ---
-    { type: 'rug', x: 1430, y: 540, w: 340, h: 300 },
-    { type: 'round', x: 1600, y: 690, r: 60 },
-    { type: 'chair', x: 1600, y: 598, dir: 'down' },
-    { type: 'chair', x: 1600, y: 782, dir: 'up' },
-    { type: 'chair', x: 1508, y: 690, dir: 'right' },
-    { type: 'chair', x: 1692, y: 690, dir: 'left' },
-    { type: 'bookshelf', x: 1898, y: 500, w: 54, h: 220 },
-    { type: 'counter', x: 1420, y: 44, w: 200, h: 50 },
-    { type: 'plant', x: 1660, y: 480 },
-    { type: 'plant', x: 1450, y: 910 },
-
-    // --- Lounge (bottom left, open plan) ---
-    { type: 'rug', x: 200, y: 1100, w: 420, h: 250 },
-    { type: 'sofa', x: 240, y: 1120, w: 240, h: 80 },
-    { type: 'sofa', x: 240, y: 1265, w: 240, h: 80 },
-    { type: 'round', x: 540, y: 1225, r: 50 },
-    { type: 'pingpong', x: 800, y: 1130, w: 300, h: 170 },
-    { type: 'plant', x: 700, y: 1330 },
-    { type: 'plant', x: 1200, y: 1110 },
-
-    // --- Pantry ---
-    { type: 'counter', x: 1420, y: 1010, w: 500, h: 58 },
-    { type: 'coffee', x: 1450, y: 1016, w: 46, h: 46 },
-    { type: 'round', x: 1560, y: 1200, r: 66 },
-    { type: 'chair', x: 1560, y: 1110, dir: 'down' },
-    { type: 'chair', x: 1470, y: 1240, dir: 'right' },
-    { type: 'chair', x: 1650, y: 1240, dir: 'left' },
-    { type: 'round', x: 1850, y: 1200, r: 56 },
-    { type: 'chair', x: 1850, y: 1120, dir: 'down' },
-    { type: 'chair', x: 1850, y: 1285, dir: 'up' },
-    { type: 'plant', x: 1935, y: 1030 },
+  collisions:[
+    [235,89,27,85],[426,93,27,89],[320,130,42,33],
+    [720,93,218,62],[1240,139,65,39],[1367,237,53,24],
+    [83,354,152,29],[83,371,31,93],[152,406,51,44],
+    [76,594,198,40],[106,651,197,38],[101,749,48,44],
+    [308,747,48,43],[206,774,45,99],
+    [518,313,69,70],[626,310,72,73],[591,287,27,140],
+    [788,319,64,66],[889,315,107,70],[855,299,26,130],
+    [503,476,59,60],[503,573,59,58],[480,536,107,29],
+    [939,476,59,60],[939,575,59,57],[919,536,102,30],
+    [697,461,84,112],[667,492,25,66],[781,491,29,73],
+    [685,575,94,23],[658,657,168,31],
+    [694,752,109,48],[502,763,68,29],[546,739,58,29],
+    [879,740,57,28],[927,766,59,32],[542,834,24,24],[921,829,24,23],
+    [1200,364,27,52],[1198,510,30,51],[1253,807,23,24],
+  ],
+  seats:[
+    {x:304,y:121,dir:'right'},{x:380,y:121,dir:'left'},{x:381,y:180,dir:'left'},
+    ...[754,791,829,867,904].map(x=>({x,y:79,dir:'down'})),
+    ...[754,791,829,867,904].map(x=>({x,y:181,dir:'up'})),
+    {x:702,y:131,dir:'right'},{x:954,y:131,dir:'left'},
+    {x:1230,y:157,dir:'right'},{x:1286,y:121,dir:'down'},
+    {x:1247,y:216,dir:'up'},{x:1310,y:206,dir:'left'},
+    {x:255,y:443,dir:'left'},{x:142,y:493,dir:'up'},
+    {x:553,y:299,dir:'down'},{x:662,y:297,dir:'down'},
+    {x:553,y:405,dir:'up'},{x:661,y:405,dir:'up'},
+    {x:817,y:305,dir:'down'},{x:918,y:301,dir:'down'},
+    {x:969,y:301,dir:'down'},{x:817,y:402,dir:'up'},
+    {x:918,y:403,dir:'up'},{x:969,y:403,dir:'up'},
+    {x:490,y:502,dir:'right'},{x:575,y:502,dir:'left'},
+    {x:490,y:598,dir:'right'},{x:575,y:598,dir:'left'},
+    {x:926,y:503,dir:'right'},{x:1010,y:503,dir:'left'},
+    {x:926,y:599,dir:'right'},{x:1010,y:599,dir:'left'},
+    {x:1186,y:394,dir:'right'},{x:1186,y:541,dir:'right'},
+    {x:146,y:702,dir:'up'},{x:180,y:702,dir:'up'},
+    {x:215,y:702,dir:'up'},{x:250,y:702,dir:'up'},
+    {x:541,y:871,dir:'right'},{x:588,y:852,dir:'left'},
+    {x:900,y:853,dir:'right'},{x:951,y:865,dir:'left'},
+    {x:1227,y:819,dir:'right'},{x:1299,y:819,dir:'left'},
   ],
 };
-
-// Two desks back to back with a chair on each side: the standard office pod.
-function pod(x, y) {
-  return [
-    { type: 'desk', x, y, w: 200, h: 70, screen: true },
-    { type: 'desk', x, y: y + 80, w: 200, h: 70, screen: true },
-    { type: 'chair', x: x + 50, y: y - 36, dir: 'down' },
-    { type: 'chair', x: x + 150, y: y - 36, dir: 'down' },
-    { type: 'chair', x: x + 50, y: y + 186, dir: 'up' },
-    { type: 'chair', x: x + 150, y: y + 186, dir: 'up' },
-  ];
-}
-
-// Furniture you cannot walk through. Chairs and rugs are deliberately absent:
-// you walk onto a chair and then sit on it.
-const SOLID = {
-  desk: (f) => [f.x, f.y, f.w, f.h],
-  counter: (f) => [f.x, f.y, f.w, f.h],
-  sofa: (f) => [f.x, f.y, f.w, f.h],
-  bookshelf: (f) => [f.x, f.y, f.w, f.h],
-  pingpong: (f) => [f.x, f.y, f.w, f.h],
-  whiteboard: (f) => [f.x, f.y, f.w, f.h],
-  coffee: (f) => [f.x, f.y, f.w, f.h],
-  round: (f) => [f.x - f.r * 0.8, f.y - f.r * 0.8, f.r * 1.6, f.r * 1.6],
-  plant: (f) => [f.x - 18, f.y - 18, 36, 36],
-};
-
-// A wall run minus its doorway.
-function segments(from, to, gap) {
-  if (!gap) return [[from, to]];
-  const parts = [];
-  if (gap[0] > from) parts.push([from, gap[0]]);
-  if (gap[1] < to) parts.push([gap[1], to]);
-  return parts;
-}
-
-function roomWalls(room) {
-  const { x, y, w, h } = room;
-  const d = room.doors || {};
-  const out = [];
-  for (const [a, b] of segments(x, x + w, d.north)) out.push([a, y, b - a, WALL]);
-  for (const [a, b] of segments(x, x + w, d.south)) out.push([a, y + h - WALL, b - a, WALL]);
-  for (const [a, b] of segments(y, y + h, d.west)) out.push([x, a, WALL, b - a]);
-  for (const [a, b] of segments(y, y + h, d.east)) out.push([x + w - WALL, a, WALL, b - a]);
-  return out;
-}
-
-// The shape the rest of the app consumes: same fields the old map.json had, plus seats.
 function buildOffice() {
-  const { width, height, spawn } = OFFICE;
-  const collisions = [
-    [0, 0, width, SHELL],
-    [0, height - SHELL, width, SHELL],
-    [0, 0, SHELL, height],
-    [width - SHELL, 0, SHELL, height],
-  ];
-
-  for (const room of OFFICE.rooms) collisions.push(...roomWalls(room));
-  for (const f of OFFICE.furniture) {
-    const box = SOLID[f.type];
-    if (box) collisions.push(box(f));
-  }
-
-  const seats = OFFICE.furniture
-    .filter((f) => f.type === 'chair')
-    .map((f) => ({ x: f.x, y: f.y, dir: f.dir }));
-
-  return { width, height, spawn, collisions, seats };
+  const collisions=OFFICE.collisions.map(box=>[...box]);
+  collisions.walkable=OFFICE.walkable;
+  return {...OFFICE,collisions,seats:OFFICE.seats.map(seat=>({...seat}))};
 }
-
-Object.assign(globalThis, { OFFICE, WALL, SHELL, PALETTE, buildOffice, roomWalls });
+Object.assign(globalThis,{OFFICE,buildOffice});

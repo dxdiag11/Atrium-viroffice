@@ -1,6 +1,6 @@
 // Map, movement, rendering, and the socket wiring. Globals used: io, canMove, RADIUS, NEAR, FAR.
 
-const SPEED = 200;      // px per second
+const SPEED = 150;      // px per second
 const SEND_HZ = 15;     // position updates per second
 const LERP = 12;        // remote position smoothing per second
 
@@ -19,6 +19,14 @@ let radioHolder = null; // socket id currently holding the walkie channel
 let lastSent = 0;
 let sentX = null;
 let sentY = null;
+let selectedCharacter = 'male-001';
+let joining = false;
+let assetsReady = false;
+let mapPromise = null;
+try {
+  selectedCharacter = characterById(localStorage.getItem('atrium.character')).id;
+  document.getElementById('name').value = localStorage.getItem('atrium.name') || '';
+} catch (_) { /* Storage can be unavailable in private browsing. */ }
 
 const resize = () => {
   canvas.width = window.innerWidth;
@@ -31,35 +39,81 @@ resize();
 
 async function loadMap() {
   map = buildOffice();
-  // Real artwork wins if it is there. Otherwise the office is drawn from the same data
-  // the walls come from, so what you see is always exactly what you bump into.
-  background = await loadImage('assets/map.png').catch(() => loadImage(officeSvgUrl()));
+  background = await loadImage(map.image);
 }
 
-function loadImage(src) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('cannot load ' + src));
-    img.src = src;
-  });
+function showError(message) {
+  const el=document.getElementById('error');
+  el.textContent=message;
+  el.hidden=false;
 }
 
 // --- join ------------------------------------------------------------------
 
+async function selectCharacter(id) {
+  selectedCharacter=id;
+  assetsReady=false;
+  const button=document.getElementById('join');
+  button.disabled=true;
+  button.textContent='Loading workspace…';
+  document.getElementById('selected-character').textContent=characterById(id).name;
+  for (const option of document.querySelectorAll('.character-option')) option.setAttribute('aria-pressed',String(option.dataset.character===id));
+  try {
+    if (!mapPromise) mapPromise=loadMap().catch(err=>{mapPromise=null;throw err;});
+    await Promise.all([mapPromise,loadCharacter(id)]);
+    if (id!==selectedCharacter) return;
+    const preview=document.getElementById('character-preview');
+    preview.style.backgroundImage='url("/assets/characters/'+id+'/move.png")';
+    preview.setAttribute('aria-label',characterById(id).name+' preview');
+    assetsReady=true;
+    button.disabled=joining;
+    button.textContent='Enter office · with mic';
+    document.getElementById('error').hidden=true;
+  } catch (err) {
+    if (id!==selectedCharacter) return;
+    showError('Workspace asset could not load. Click Enter to retry. '+err.message);
+    button.textContent='Retry loading';
+    button.disabled=false;
+  }
+}
+
+for (const character of CHARACTERS) {
+  const option=document.createElement('button');
+  option.type='button';
+  option.className='character-option';
+  option.dataset.character=character.id;
+  option.setAttribute('aria-label',character.name+' ('+character.id+')');
+  const thumb=document.createElement('span');
+  thumb.className='character-thumb';
+  thumb.style.backgroundImage='url("/assets/characters/'+character.id+'/move.png")';
+  thumb.setAttribute('aria-hidden','true');
+  const label=document.createElement('span');
+  label.className='character-name';
+  label.textContent=character.name;
+  option.append(thumb,label);
+  option.addEventListener('click',()=>{if(!joining) selectCharacter(character.id);});
+  document.getElementById('character-list').append(option);
+}
+
 document.getElementById('join').addEventListener('click', async (e) => {
+  if (!assetsReady) return selectCharacter(selectedCharacter);
+  if (!socket.connected) return showError('Connecting to the office. Please try again in a moment.');
   const button = e.currentTarget;
   const error = document.getElementById('error');
   button.disabled = true;
+  joining=true;
   error.hidden = true;
 
   try {
     await startVoice(); // myId arrives with the server's player snapshot
-    socket.emit('join', { name: document.getElementById('name').value.trim() || 'anon' });
+    const name=document.getElementById('name').value.trim() || 'anon';
+    try { localStorage.setItem('atrium.character',selectedCharacter); localStorage.setItem('atrium.name',name); } catch (_) {}
+    socket.emit('join', { name, characterId:selectedCharacter });
   } catch (err) {
     error.textContent = 'Mic access failed: ' + err.message;
     error.hidden = false;
     button.disabled = false;
+    joining=false;
   }
 });
 
@@ -72,6 +126,8 @@ document.getElementById('mute').addEventListener('click', (e) => {
 // --- socket ----------------------------------------------------------------
 
 socket.on('players', (all, id, holder) => {
+  joining=false;
+  for (const oldId of Object.keys(players)) delete players[oldId];
   myId = id;
   radioHolder = holder || null;
   setSelfId(id);
@@ -103,11 +159,20 @@ socket.on('player-seat', ({ id, seat, x, y }) => {
   }
 });
 
-socket.on('player-moved', ({ id, x, y }) => {
+socket.on('player-moved', ({ id, x, y, direction }) => {
   const p = players[id];
   if (!p) return;
   p.x = x;
   p.y = y;
+  p.direction=direction || p.direction;
+  p.walkUntil=performance.now()+180;
+});
+
+socket.on('player-speaking',({id,on})=>{if(players[id]) players[id].speaking=on;});
+socket.on('position-corrected',({x,y})=>{
+  const me=players[myId];
+  if (!me) return;
+  me.x=me.rx=sentX=x; me.y=me.ry=sentY=y;
 });
 
 socket.on('player-left', (id) => {
@@ -143,19 +208,27 @@ socket.on('signal', ({ from, data }) => handleSignal(from, data));
 
 socket.on('disconnect', () => {
   for (const id of Object.keys(players)) if (id !== myId) closePeer(id);
+  for (const id of Object.keys(players)) delete players[id];
+  myId=null; joining=false; radioHolder=null; held.clear(); sentX=sentY=null;
+  document.getElementById('gate').hidden=false;
+  document.getElementById('hud').hidden=true;
+  document.getElementById('join').disabled=false;
+  showError('Connection lost. Re-enter the office when your connection returns.');
 });
 
 function addPlayer(p) {
-  players[p.id] = { ...p, rx: p.x, ry: p.y };
+  players[p.id] = { ...p, rx: p.x, ry: p.y, direction:p.direction || 'down', walkUntil:0 };
+  loadCharacter(p.characterId).catch(err=>showError(err.message));
 }
 
 // --- input -----------------------------------------------------------------
 
 window.addEventListener('keydown', (e) => {
-  if (e.target.tagName === 'INPUT') return;
+  if (!myId || ['INPUT','TEXTAREA'].includes(e.target.tagName)) return;
   const key = e.key.toLowerCase();
+  if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(key)) e.preventDefault();
   if (e.key === '`') showRange = !showRange;
-  if (key === 'e' && players[myId]) toggleSit(players[myId]);
+  if (key === 'e' && !e.repeat && players[myId]) toggleSit(players[myId]);
   // keydown repeats while a key is held, so ask the channel only on the first one.
   if (key === 't' && !held.has('t') && myId) socket.emit('ptt-down');
   held.add(key);
@@ -181,14 +254,14 @@ function axis(negKeys, posKeys) {
 }
 
 // Stepping out of a chair puts you behind it, i.e. opposite the way you were facing.
-const STAND_OFFSET = { up: [0, 44], down: [0, -44], left: [44, 0], right: [-44, 0] };
+const STAND_OFFSET = { up: [0, 24], down: [0, -24], left: [24, 0], right: [-24, 0] };
 
 function nearestSeat(me) {
   let best = -1;
-  let bestDist = 70;
+  let bestDist = 48;
   map.seats.forEach((seat, i) => {
     const d = Math.hypot(seat.x - me.x, seat.y - me.y);
-    if (d < bestDist) {
+    if (d < bestDist && canTraverse(me,seat,RADIUS,map.collisions)) {
       bestDist = d;
       best = i;
     }
@@ -217,7 +290,7 @@ function stand(me, step = true) {
     const [ox, oy] = STAND_OFFSET[seat.dir] || [0, 44];
     const nx = clamp(me.x + ox, RADIUS, map.width - RADIUS);
     const ny = clamp(me.y + oy, RADIUS, map.height - RADIUS);
-    if (canMove(nx, ny, RADIUS, map.collisions)) {
+    if (canTraverse(me,{x:nx,y:ny}, RADIUS, map.collisions)) {
       me.x = nx;
       me.y = ny;
     }
@@ -226,9 +299,12 @@ function stand(me, step = true) {
 }
 
 function move(me, dt) {
+  me.walking=false;
   let dx = axis(['a', 'arrowleft'], ['d', 'arrowright']);
   let dy = axis(['w', 'arrowup'], ['s', 'arrowdown']);
   if (!dx && !dy) return;
+  me.direction=Math.abs(dx)>Math.abs(dy)?(dx<0?'left':'right'):(dy<0?'up':'down');
+  const oldX=me.x, oldY=me.y;
   if (me.seat !== null) stand(me, false); // walking away from a chair gets you out of it
 
   if (dx && dy) {
@@ -244,6 +320,7 @@ function move(me, dt) {
 
   const ny = clamp(me.y + dy * step, RADIUS, map.height - RADIUS);
   if (canMove(me.x, ny, RADIUS, map.collisions)) me.y = ny;
+  me.walking=me.x!==oldX || me.y!==oldY;
 }
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -288,8 +365,8 @@ function draw(me) {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   if (!map || !me) return;
 
-  const camX = clamp(me.x - canvas.width / 2, 0, Math.max(0, map.width - canvas.width));
-  const camY = clamp(me.y - canvas.height / 2, 0, Math.max(0, map.height - canvas.height));
+  const camX = canvas.width>map.width?(map.width-canvas.width)/2:clamp(me.x-canvas.width/2,0,map.width-canvas.width);
+  const camY = canvas.height>map.height?(map.height-canvas.height)/2:clamp(me.y-canvas.height/2,0,map.height-canvas.height);
 
   ctx.save();
   ctx.translate(-camX, -camY);
@@ -308,7 +385,7 @@ function draw(me) {
     ctx.setLineDash([]);
   }
 
-  for (const p of Object.values(players)) drawPlayer(p, p.id === myId);
+  for (const p of Object.values(players).sort((a,b)=>a.ry-b.ry)) drawPlayer(p, p.id === myId);
 
   const near = nearestSeat(me);
   const hint =
@@ -334,18 +411,26 @@ function drawPlayer(p, isSelf) {
     ctx.stroke();
   }
 
-  ctx.beginPath();
-  ctx.arc(p.rx, p.ry, RADIUS, 0, Math.PI * 2);
-  ctx.fillStyle = p.color;
-  ctx.fill();
-  ctx.lineWidth = isSelf ? 3 : 2;
-  ctx.strokeStyle = isSelf ? '#ffffff' : 'rgba(0,0,0,0.4)';
-  ctx.stroke();
+  const seated=p.seat!==null;
+  const speaking=p.speaking || p.id===radioHolder;
+  const direction=seated?map.seats[p.seat].dir:p.direction;
+  const walking=isSelf?p.walking:performance.now()<p.walkUntil;
+  if (isSelf || speaking) {
+    ctx.beginPath(); ctx.ellipse(p.rx,p.ry,15,6,0,0,Math.PI*2);
+    ctx.strokeStyle=speaking?'#b8ecb0':'#efd59a';ctx.lineWidth=2;ctx.stroke();
+  }
+  if (!drawCharacter(ctx,p.characterId,p.rx,p.ry,direction,seated,speaking,walking,performance.now())) {
+    ctx.beginPath();ctx.arc(p.rx,p.ry,8,0,Math.PI*2);ctx.fillStyle=p.color;ctx.fill();
+  }
 
   ctx.font = '12px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillStyle = '#e8eaf0';
-  ctx.fillText(p.name, p.rx, p.ry - RADIUS - 6);
+  const label=p.name+(speaking?' · speaking':'');
+  const width=ctx.measureText(label).width+14;
+  ctx.fillStyle='rgba(12,24,20,.88)';ctx.fillRect(p.rx-width/2,p.ry-85,width,18);
+  ctx.fillStyle=isSelf?'#f4dfb1':'#edf1e6';
+  ctx.fillText(label, p.rx, p.ry-72);
 }
 
 // Audio runs on a timer, not on rAF: a hidden tab pauses rAF entirely, which would
@@ -354,8 +439,11 @@ function drawPlayer(p, isSelf) {
 setInterval(() => {
   const me = players[myId];
   if (!me) return;
+  const speaking=localSpeaking();
+  if (me.speaking!==speaking) {me.speaking=speaking;socket.emit('speaking',speaking);}
   const audible = updateSpatialAudio(me, players, radioHolder);
   document.getElementById('peers').textContent = audible + ' nearby';
 }, 100);
 
-loadMap().then(() => requestAnimationFrame(frame));
+selectCharacter(selectedCharacter);
+requestAnimationFrame(frame);

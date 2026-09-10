@@ -54,20 +54,54 @@ button.on { background: #7a2b2b; border-color: #a03c3c; }
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgba(10, 11, 15, 0.92);
+  overflow-y: auto;
+  padding: 32px 20px;
+  background: linear-gradient(115deg,rgba(11,25,22,.89),rgba(17,24,18,.72)),url('/assets/maps/atrium-cave-office.png') center/cover;
 }
 
 .card {
-  width: 340px;
-  padding: 28px;
-  border-radius: 14px;
-  background: #1b1e27;
-  border: 1px solid #2c3040;
-  text-align: center;
+  width: min(920px,100%);
+  padding: 36px;
+  border-radius: 24px;
+  background: rgba(20,35,30,.97);
+  border: 1px solid #4b5b44;
+  box-shadow: 0 24px 100px #0008;
 }
 
-.card h1 { margin: 0 0 8px; font-size: 22px; }
-.card p { margin: 0 0 16px; color: #9096a8; }
+.card h1 { margin: 8px 0; font: 500 38px/1.2 Georgia,serif; color:#f4eddc; }
+.card h1 span { color:#d7b879; }
+.card p { margin: 0 0 20px; color: #a6b3a8; }
+.eyebrow { font-size:10px; letter-spacing:2px; color:#c8b78c; }
+.onboarding { display:grid; grid-template-columns:240px 1fr; gap:32px; border-top:1px solid #ffffff15; padding-top:24px; }
+.identity { text-align:center; }
+.identity label { display:block; text-align:left; font-size:12px; color:#b7c2b5; margin:16px 0 6px; }
+.identity h2 { font-size:16px; margin:6px 0 14px; color:#ede6d4; }
+.selection h2 { font-size:17px; margin:0 0 4px; color:#ede6d4; }
+.selection p { font-size:12px; }
+.avatar-preview { height:180px; background:radial-gradient(ellipse at 50% 70%,#66734a55,transparent 65%); }
+#character-preview { width:180px; height:180px; margin:auto; background-size:400% 300%; background-position:left top; background-repeat:no-repeat; }
+#character-list { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:9px; }
+.character-option { padding:6px 3px 9px; min-width:0; background:#25392f; border-color:#465343; border-radius:12px; }
+.character-option:hover { background:#344b39; }
+.character-option[aria-pressed="true"] { border-color:#d8bc7f; background:#475337; box-shadow:0 0 0 1px #d8bc7f; }
+.character-thumb { display:block; width:100%; aspect-ratio:1; background-size:400% 300%; background-position:left top; background-repeat:no-repeat; }
+.character-option .character-name { display:block; font-size:10px; line-height:1.3; color:#d9dfd0; min-height:26px; }
+button:focus-visible,input:focus-visible { outline:2px solid #efd39b; outline-offset:4px; }
+button:disabled { opacity:.55; cursor:wait; }
+@media(max-width:650px) {
+  #gate { display:block; padding:16px; }
+  .card { padding:22px; margin:auto; }
+  .card h1 { font-size:30px; }
+  .onboarding { grid-template-columns:1fr; gap:22px; }
+  .identity { display:grid; grid-template-columns:100px 1fr; column-gap:16px; align-items:center; }
+  .avatar-preview { grid-row:1/6; height:130px; }
+  #character-preview { width:130px; height:130px; margin-left:-15px; }
+  .identity h2,.identity label { margin:3px 0; }
+  .identity .eyebrow { display:none; }
+  #character-list { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  #hud { max-width:calc(100vw - 24px); flex-wrap:wrap; gap:8px; left:12px; bottom:12px; }
+  #hud .hint { font-size:10px; }
+}
 
 #name {
   width: 100%;

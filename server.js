@@ -5,11 +5,15 @@ const https = require('https');
 const os = require('os');
 const { Server } = require('socket.io');
 
+require('./public/geom.js');
+require('./public/characters.js');
 require('./public/office.js');
 const map = buildOffice(); // walls, spawn and seats all come from the one office model
 
 const app = express();
 app.use(express.static(__dirname + '/public'));
+app.use('/assets/maps', express.static(__dirname + '/assets/maps', { maxAge: '1h' }));
+app.use('/assets/characters', express.static(__dirname + '/assets/characters', { maxAge: '1h' }));
 
 // Browsers only hand out a mic on a secure origin. localhost counts as one; a LAN IP
 // does not, so testing with someone on another machine needs https. Run ./make-cert.sh
@@ -24,9 +28,7 @@ const server = secure
 
 const io = new Server(server);
 
-const COLORS = ['#e0533f', '#3f8ee0', '#3fbf6f', '#d8a13a', '#a55fd0', '#3fc4c4', '#e06fa8', '#7a8ff0'];
 const players = {};
-let colorIndex = 0;
 
 // The walkie channel: one talker at a time, owned here for the same reason seats are.
 const RADIO_TIMEOUT = 30000;
@@ -40,18 +42,25 @@ function releaseRadio(io) {
   if (id) io.emit('radio', { id, on: false });
 }
 
-const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-
 io.on('connection', (socket) => {
   socket.on('join', (payload) => {
     if (players[socket.id]) return;
     const name = String((payload && payload.name) || 'anon').slice(0, 16);
+    const character = characterById(payload && payload.characterId);
+    const spawn = {...map.spawn};
+    for (let attempt=0; attempt<20; attempt++) {
+      const x=map.spawn.x+(Math.random()-.5)*80, y=map.spawn.y+(Math.random()-.5)*36;
+      if (canMove(x,y,RADIUS,map.collisions)) { spawn.x=x; spawn.y=y; break; }
+    }
     players[socket.id] = {
       id: socket.id,
       name,
-      color: COLORS[colorIndex++ % COLORS.length],
-      x: clamp(map.spawn.x + (Math.random() - 0.5) * 120, 0, map.width),
-      y: clamp(map.spawn.y + (Math.random() - 0.5) * 120, 0, map.height),
+      color: character.color,
+      characterId: character.id,
+      direction: 'down',
+      speaking: false,
+      x: spawn.x,
+      y: spawn.y,
       seat: null,
     };
     socket.emit('players', players, socket.id, radio);
@@ -62,9 +71,21 @@ io.on('connection', (socket) => {
     const p = players[socket.id];
     if (!p || !pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return;
     if (p.seat !== null) return; // seated players are parked on their chair
-    p.x = clamp(pos.x, 0, map.width);
-    p.y = clamp(pos.y, 0, map.height);
-    socket.broadcast.emit('player-moved', { id: socket.id, x: p.x, y: p.y });
+    if (!canTraverse(p, pos, RADIUS, map.collisions)) {
+      return socket.emit('position-corrected', {x:p.x,y:p.y});
+    }
+    const dx=pos.x-p.x, dy=pos.y-p.y;
+    if (dx || dy) p.direction = Math.abs(dx)>Math.abs(dy) ? (dx<0?'left':'right') : (dy<0?'up':'down');
+    p.x = pos.x;
+    p.y = pos.y;
+    socket.broadcast.emit('player-moved', { id: socket.id, x: p.x, y: p.y, direction:p.direction });
+  });
+
+  socket.on('speaking', on => {
+    const p=players[socket.id];
+    if (!p || typeof on !== 'boolean' || p.speaking === on) return;
+    p.speaking=on;
+    socket.broadcast.emit('player-speaking', {id:socket.id,on});
   });
 
   // The server owns who is sitting where: two people clicking the same chair at the
@@ -75,6 +96,8 @@ io.on('connection', (socket) => {
     const p = players[socket.id];
     if (!p || p.seat !== null) return;
     if (!Number.isInteger(i) || i < 0 || i >= map.seats.length) return;
+    if (Math.hypot(p.x-map.seats[i].x,p.y-map.seats[i].y)>48) return;
+    if (!canTraverse(p,map.seats[i],RADIUS,map.collisions)) return;
     if (seatTaken(i)) return socket.emit('seat-denied', i);
 
     p.seat = i;
@@ -86,11 +109,12 @@ io.on('connection', (socket) => {
   socket.on('stand', (pos) => {
     const p = players[socket.id];
     if (!p || p.seat === null) return;
-    p.seat = null;
     if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
-      p.x = clamp(pos.x, 0, map.width);
-      p.y = clamp(pos.y, 0, map.height);
+      if (Math.hypot(p.x-pos.x,p.y-pos.y)>60 || !canTraverse(p,pos,RADIUS,map.collisions)) return;
+      p.x = pos.x;
+      p.y = pos.y;
     }
+    p.seat = null;
     io.emit('player-seat', { id: socket.id, seat: null, x: p.x, y: p.y });
   });
 
