@@ -27,9 +27,13 @@ Each game is its own standalone server, unchanged from a plain `games/*` app:
 `gaple` :3200, `tumble` :3300, `werewolf` :3400. The office iframes them from
 `http://<host>:<port>/?name=…&color=…` (so your office name/colour carry in) and a
 game's own "back" button closes the overlay via `postMessage`. `npm run start:all`
-(see `scripts/run-all.js`) launches everything. Because the games are served over
-plain http, open the office at `http://localhost:3100` for the menu to work — an
-https LAN origin can't iframe an http game (mixed content).
+(see `scripts/run-all.js`) launches everything.
+
+The games follow the office onto https whenever `certs/` exists (`games/serve.js`),
+since an https page cannot iframe an http one. The certificate is self-signed and a
+browser will not show its warning inside an iframe, so **each game port has to be
+opened once in a normal tab and accepted** — the office checks before opening the
+overlay and tells you which address to visit if it has not been.
 
 **Werewolf** (6–12 players) has no audio of its own: daytime discussion uses the
 office's proximity voice, which keeps running in the parent page while the game

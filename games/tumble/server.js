@@ -4,13 +4,12 @@
    ============================================================ */
 const express = require('express');
 const path = require('path');
-const http = require('http');
-const os = require('os');
+const { createServer, announce } = require('../serve');
 const { Server } = require('socket.io');
 
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
-const server = http.createServer(app);
+const server = createServer(app);
 const io = new Server(server);
 const PORT = process.env.PORT || 3300;
 
@@ -606,11 +605,4 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log('\n  🏃 Tumble Rush  →  http://localhost:' + PORT + '\n');
-  for (const list of Object.values(os.networkInterfaces())) {
-    for (const net of list) {
-      if (net.family === 'IPv4' && !net.internal) console.log('  LAN: http://' + net.address + ':' + PORT);
-    }
-  }
-});
+server.listen(PORT, '0.0.0.0', () => announce('🏃 Tumble  ', server, PORT));

@@ -33,7 +33,19 @@ const stop = () => { for (const p of procs) p.kill('SIGINT'); };
 process.on('SIGINT', () => { stop(); process.exit(0); });
 process.on('SIGTERM', () => { stop(); process.exit(0); });
 
-console.log('\n  Atrium    http://localhost:3100');
-console.log('  Gaple     http://localhost:3200   (dibuka dari kursi di kantor)');
-console.log('  Tumble    http://localhost:3300   (dibuka dari kursi di kantor)');
-console.log('  Werewolf  http://localhost:3400   (dibuka dari kursi di kantor)\n');
+// Every server picks up certs/ on its own; this is only for the banner.
+const fs = require('fs');
+const tls = !process.env.NO_TLS && fs.existsSync(path.join(root, 'certs', 'cert.pem'));
+const scheme = tls ? 'https' : 'http';
+const officePort = tls ? 3443 : 3100;
+
+console.log('\n  Atrium    ' + scheme + '://localhost:' + officePort);
+for (const j of jobs.slice(1)) {
+  console.log('  ' + j.name.padEnd(9) + ' ' + scheme + '://localhost:' + j.port + '   (dibuka dari kursi di kantor)');
+}
+if (tls) {
+  console.log('\n  Sertifikatnya self-signed, jadi tiap port harus diterima sekali.');
+  console.log('  Buka tiap alamat game di atas satu kali sebelum main.\n');
+} else {
+  console.log('');
+}

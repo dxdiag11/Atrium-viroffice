@@ -356,9 +356,13 @@ button.on { background: #7a2b2b; border-color: #a03c3c; }
 #gameframe-hint {
   position: absolute;
   left: 50%;
-  top: 55%;
+  top: 45%;
   transform: translateX(-50%);
+  max-width: 520px;
+  text-align: center;
+  line-height: 1.7;
   color: #c9a15a;
   font-size: 13px;
 }
+#gameframe-hint a { color: #7fc4ff; }
 #gameframe-hint code { color: #e8eaf0; }

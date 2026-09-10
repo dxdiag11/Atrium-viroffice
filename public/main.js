@@ -264,10 +264,26 @@ const GAMES = {
   werewolf: { name: '🐺 Werewolf',    port: 3400 },
 };
 
+function gameOrigin(port) {
+  return location.protocol + '//' + location.hostname + ':' + port;
+}
+
 function gameUrl(port) {
   const me = players[myId] || {};
   const q = '?name=' + encodeURIComponent(me.name || '') + '&color=' + encodeURIComponent(me.color || '');
-  return location.protocol + '//' + location.hostname + ':' + port + '/' + q;
+  return gameOrigin(port) + '/' + q;
+}
+
+// The self-signed certificate has to be accepted once per port, and a browser will not
+// show that prompt inside an iframe -- the overlay would just come up blank. So knock on
+// the game first: a rejected fetch means the certificate has not been trusted yet.
+async function gameReachable(port) {
+  try {
+    await fetch(gameOrigin(port) + '/', { mode: 'no-cors', cache: 'no-store' });
+    return true;
+  } catch (err) {
+    return false;
+  }
 }
 
 function maybeArcade(me) {
@@ -276,16 +292,27 @@ function maybeArcade(me) {
   document.getElementById('arcade').hidden = !(seat && seat.game && !playing);
 }
 
-function openGame(key) {
+async function openGame(key) {
   const g = GAMES[key];
   if (!g) return;
   const iframe = document.getElementById('gameframe-iframe');
-  document.getElementById('gameframe-hint').hidden = true;
+  const hint = document.getElementById('gameframe-hint');
+
+  hint.hidden = true;
   document.getElementById('gameframe-title').textContent = g.name;
-  iframe.src = gameUrl(g.port);
-  iframe.onerror = () => { document.getElementById('gameframe-hint').hidden = false; };
   document.getElementById('arcade').hidden = true;
   document.getElementById('gameframe').hidden = false;
+
+  if (await gameReachable(g.port)) {
+    iframe.src = gameUrl(g.port);
+  } else {
+    const origin = gameOrigin(g.port);
+    hint.innerHTML =
+      'Belum bisa dibuka. Buka <a href="' + origin + '" target="_blank" rel="noopener">' + origin +
+      '</a> sekali di tab baru, terima peringatan sertifikatnya, lalu balik ke sini dan pilih lagi.' +
+      '<br>Kalau tetap gagal, server game-nya belum jalan: <code>npm run start:all</code>.';
+    hint.hidden = false;
+  }
   // Release the walkie BEFORE clearing the key set, or the check can never be true and
   // opening a game mid-transmission strands the channel until the server times it out.
   if (held.has('t')) socket.emit('ptt-up');
