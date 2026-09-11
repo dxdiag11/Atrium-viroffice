@@ -425,6 +425,7 @@ const GAMES = {
   gaple:    { name: '🀄 Gaple',       port: 3200 },
   tumble:   { name: '🏃 Tumble Rush', port: 3300 },
   werewolf: { name: '🐺 Werewolf',    port: 3400 },
+  impostor: { name: '🔪 Penyusup',    port: 3500 },
 };
 
 function gameOrigin(port) {

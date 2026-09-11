@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Penyusup – Virtual Office Games</title>
+<meta name="description" content="Social deduction 2D ala Among Us untuk Virtual Office: kerjakan tugas, cari penyusup, lapor mayat, dan voting.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ PRE-JOIN ============ -->
+<section id="prejoin" class="screen">
+  <div class="card">
+    <h1>🔪 PENYUSUP</h1>
+    <p>Social deduction 2D untuk <b>4–10 pemain</b>. Kerjakan tugas, awasi sekitar, dan
+      cari siapa yang menyamar. Diskusi saat rapat lewat <b>voice chat kantor</b>.</p>
+    <label class="fld"><span>Nama kamu</span>
+      <input id="nameInput" maxlength="14" placeholder="Nama" autocomplete="off">
+    </label>
+    <button id="joinBtn" class="btn primary">Masuk kapal</button>
+    <p id="prejoinMsg" class="msg"></p>
+  </div>
+</section>
+
+<!-- ============ LOBBY ============ -->
+<section id="lobby" class="screen hidden">
+  <div class="card">
+    <h1>🔪 PENYUSUP</h1>
+    <div class="row-h">Ruang Tunggu <span id="lobbyCount" class="dim"></span></div>
+    <ul id="crewList" class="crew"></ul>
+    <p class="dim small">Kursi kosong diisi bot sampai 6 pemain. 7 pemain ke atas → 2 penyusup.</p>
+    <div id="lobbyMsg" class="msg"></div>
+    <button id="startBtn" class="btn primary hidden">Mulai permainan</button>
+    <button id="backBtn1" class="btn ghost">← Kembali ke Virtual Office</button>
+  </div>
+</section>
+
+<!-- ============ GAME ============ -->
+<div id="game" class="hidden">
+  <canvas id="stage"></canvas>
+
+  <div id="hud">
+    <div class="hud-top">
+      <div class="taskbar">
+        <span class="taskbar-label">TUGAS</span>
+        <div class="taskbar-track"><i id="taskFill"></i></div>
+        <span id="taskPct" class="taskbar-pct">0%</span>
+      </div>
+      <button id="leaveBtn" class="btn ghost small">← Kantor</button>
+    </div>
+
+    <div id="roleBanner" class="role-banner hidden"></div>
+
+    <aside id="taskPanel" class="task-panel"></aside>
+    <div id="logPanel" class="log-panel"></div>
+
+    <div class="actions">
+      <button id="sabotageBtn" class="round sabotage hidden">SABOTASE</button>
+      <button id="ventBtn" class="round vent hidden" disabled>VENT</button>
+      <button id="reportBtn" class="round report" disabled>LAPOR</button>
+      <button id="useBtn" class="round use" disabled>PAKAI</button>
+      <button id="killBtn" class="round kill hidden" disabled>BUNUH</button>
+    </div>
+    <div id="ventPanel" class="vent-panel hidden"></div>
+    <div class="hint">WASD / panah gerak · <b>E</b> pakai · <b>R</b> lapor · <b>Q</b> bunuh · <b>F</b> vent</div>
+  </div>
+</div>
+
+<!-- ============ TASK MINIGAME ============ -->
+<div id="taskModal" class="overlay hidden">
+  <div class="task-box">
+    <div id="taskTitle" class="task-title"></div>
+    <div id="taskBody"></div>
+    <button id="taskClose" class="btn ghost">Tutup</button>
+  </div>
+</div>
+
+<!-- ============ MEETING ============ -->
+<div id="meeting" class="overlay hidden">
+  <div class="meet-box">
+    <div id="meetHead" class="meet-head"></div>
+    <div id="meetTimer" class="meet-timer"></div>
+    <ul id="voteList" class="votes"></ul>
+    <button id="skipBtn" class="btn">Lewati voting</button>
+    <div id="meetResult" class="meet-result hidden"></div>
+  </div>
+</div>
+
+<!-- ============ END ============ -->
+<div id="endScreen" class="overlay hidden"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
