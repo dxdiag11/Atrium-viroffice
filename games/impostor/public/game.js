@@ -189,10 +189,18 @@
     // sitting there permanently greyed out.
     const imp = !!(you && you.impostor);
     for (const id of ['killBtn', 'sabotageBtn', 'ventBtn']) $(id).classList.toggle('hidden', !imp);
+    $('killWhy').classList.toggle('hidden', !imp);
     if (imp) {
       const kb = $('killBtn');
-      kb.disabled = !playing || !alive || you.killIn > 0 || !killTarget();
+      const target = killTarget();
+      // Mirror every condition the server checks, the vent rule included, or the
+      // button can look ready while the kill is silently refused.
+      kb.disabled = !playing || !alive || !!you.vent || you.killIn > 0 || !target;
       kb.textContent = you.killIn > 0 ? you.killIn + 's' : 'BUNUH';
+      kb.style.borderColor = target ? target.color : '';
+      $('killWhy').textContent = !alive ? '' : you.vent ? 'keluar vent dulu'
+        : you.killIn > 0 ? 'tunggu ' + you.killIn + 's'
+        : target ? esc(target.name) : 'terlalu jauh';
 
       const sb = $('sabotageBtn');
       sb.disabled = !playing || !alive || !state.lights || you.sabotageIn > 0;
@@ -769,6 +777,22 @@
       if (p.impostor === true && state.you && (state.you.impostor || iAmGhost)) {
         g.fillStyle = '#ff6a5e'; g.font = '700 10px Rubik, sans-serif';
         g.fillText('PENYUSUP', p.x, p.y + 30);
+      }
+    }
+
+    // An impostor should be able to see how close is close enough, rather than
+    // guessing why the kill button is grey.
+    if (state.you && state.you.impostor && state.you.alive && state.phase === 'PLAYING' && !state.you.vent) {
+      const reach = 95;
+      g.save();
+      g.setLineDash([7, 7]);
+      g.strokeStyle = 'rgba(240,70,60,.30)'; g.lineWidth = 2;
+      g.beginPath(); g.arc(me.x, me.y, reach, 0, 7); g.stroke();
+      g.restore();
+      const t = killTarget();
+      if (t) {
+        g.strokeStyle = '#ff4d3d'; g.lineWidth = 3;
+        g.beginPath(); g.arc(t.x, t.y, 28, 0, 7); g.stroke();
       }
     }
 
