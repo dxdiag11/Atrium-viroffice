@@ -55,7 +55,7 @@ To bring in someone on another device, the browser requires https — see
 
 ## Deploy with Docker
 
-Runs the office and all three desk games as separate containers, mirroring
+Runs the office and all four desk games as separate containers, mirroring
 `npm run start:all`:
 
 ```bash
@@ -65,15 +65,16 @@ docker compose up --build -d
 Then open `http://<server-host>:3100`. `docker compose logs -f` to watch it,
 `docker compose down` to stop, `docker compose up --build -d` again after pulling
 new code. Each service is its own image built from the repo root (`Dockerfile`,
-`games/gaple/Dockerfile`, `games/tumble/Dockerfile`, `games/werewolf/Dockerfile` —
-they need the repo root as build context because the games `require('../serve')`),
-and comes up on the same ports as running things with `npm`: 3100/3200/3300/3400.
+`games/gaple/Dockerfile`, `games/tumble/Dockerfile`, `games/werewolf/Dockerfile`,
+`games/impostor/Dockerfile` — they need the repo root as build context because the
+games `require('../serve')`), and comes up on the same ports as running things with
+`npm`: 3100/3200/3300/3400/3500.
 
 ### HTTPS on a real server
 
 Browsers only hand out a mic on a secure origin — `localhost` counts, a public IP or
 domain does not — and an https page can't iframe an http one, so a public deployment
-needs https on **all four ports**, for the same hostname (the office reaches a game
+needs https on **every one of those ports**, for the same hostname (the office reaches a game
 at `location.hostname:<port>`). Two ways to get there, both already wired into
 `docker-compose.yml`:
 
@@ -91,9 +92,9 @@ at `location.hostname:<port>`). Two ways to get there, both already wired into
    and forward plain http to the containers' published ports. If you go this route,
    leave `./certs/` empty so the containers themselves stay on http behind the proxy.
 
-Either way, open a firewall for 3100-3400 (or whatever you remap them to) and point
+Either way, open a firewall for 3100-3500 (or whatever you remap them to) and point
 DNS at the box if you have one. With a self-signed cert (option 1's second bullet),
-each of the four ports also needs opening once in a plain tab and clicking through
+each of those ports also needs opening once in a plain tab and clicking through
 the browser's warning (Advanced → Proceed) before the office overlay can load it — a
 real certificate doesn't have that problem.
 
@@ -112,7 +113,8 @@ volume.
 ## Desk games
 
 Sit on a chair that faces a monitor (reception desk, phone booths, the open-plan
-pods) and the break-time menu pops up: **Gaple**, **Tumble Rush**, or **Werewolf**.
+pods) and the break-time menu pops up: **Gaple**, **Tumble Rush**, **Werewolf**, or
+**Penyusup**.
 Pick one and it runs in an overlay right inside the office — the overlay's exit button
 drops you back at your desk. (The in-game copy is in Indonesian: the dialog reads
 "Rehat sejenak." and the exit button "✕ Keluar & kembali ke kantor".)
@@ -125,7 +127,7 @@ for d in games/*/; do (cd "$d" && npm install); done
 ```
 
 Each game is its own standalone server, unchanged from a plain `games/*` app:
-`gaple` :3200, `tumble` :3300, `werewolf` :3400. The office iframes them from
+`gaple` :3200, `tumble` :3300, `werewolf` :3400, `impostor` :3500. The office iframes them from
 `http://<host>:<port>/?name=…&color=…` (so your office name/colour carry in) and a
 game's own "back" button closes the overlay via `postMessage`. `npm run start:all`
 (see `scripts/run-all.js`) launches everything.
@@ -136,9 +138,10 @@ browser will not show its warning inside an iframe, so **each game port has to b
 opened once in a normal tab and accepted** — the office checks before opening the
 overlay and tells you which address to visit if it has not been.
 
-**Werewolf** (6–12 players) has no audio of its own: daytime discussion uses the
-office's proximity voice, which keeps running in the parent page while the game
-overlay is open. See `games/werewolf/README.md`.
+**Werewolf** (6–12 players) and **Penyusup** (an Among Us-style 4–10 player round on a
+2D ship) have no audio of their own: discussion uses the office's proximity voice,
+which keeps running in the parent page while the game overlay is open. See
+`games/werewolf/README.md` and `games/impostor/README.md`.
 
 Which chairs count as workstations is derived in `public/office.js`: any `chair`
 within 80px of a `desk` marked `screen: true`. Move or add a monitor desk there and

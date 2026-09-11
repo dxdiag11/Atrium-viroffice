@@ -9,6 +9,7 @@ const jobs = [
   { name: 'gaple', dir: path.join(root, 'games', 'gaple'), port: 3200 },
   { name: 'tumble', dir: path.join(root, 'games', 'tumble'), port: 3300 },
   { name: 'werewolf', dir: path.join(root, 'games', 'werewolf'), port: 3400 },
+  { name: 'penyusup', dir: path.join(root, 'games', 'impostor'), port: 3500 },
 ];
 
 const procs = jobs.map((j) => {
