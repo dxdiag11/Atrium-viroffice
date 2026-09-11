@@ -7,6 +7,7 @@ const METER = { x: 22, y: 137, w: 76, h: 20 };
 let walkieEl = null;
 let barEls = [];
 const barLevels = new Array(BAR_COUNT).fill(0);
+let lastMeterTime = 0;
 
 function initWalkie() {
   walkieEl = document.getElementById('walkie');
@@ -30,8 +31,14 @@ function showWalkie(name, mine) {
   if (!walkieEl) return;
   walkieEl.classList.add('show');
   walkieEl.classList.toggle('tx', mine);
+  lastMeterTime = performance.now();
+  barLevels.fill(0);
+  for (const bar of barEls) {
+    bar.setAttribute('y', METER.y + METER.h - 2);
+    bar.setAttribute('height', 2);
+  }
   walkieEl.querySelector('.mode').textContent = mine ? 'TX' : 'RX';
-  // Always the talker's nickname, yours included: TX and the red trim already say the
+  // Always the talker's nickname, yours included: TX and the amber glow already say the
   // handset is yours, and a name is what makes a screenshot readable.
   walkieEl.querySelector('.who').textContent = (name || '??').slice(0, 10).toUpperCase();
 }
@@ -44,12 +51,18 @@ function hideWalkie() {
 // level is 0..1 from whoever currently holds the channel.
 function updateWalkieMeter(level) {
   if (!walkieEl || !walkieEl.classList.contains('show')) return;
+  const now = performance.now();
+  const dt = Math.min(0.1, Math.max(0, (now - lastMeterTime) / 1000));
+  lastMeterTime = now;
+  level = Number.isFinite(level) ? Math.max(0, Math.min(1, level)) : 0;
 
   for (let i = 0; i < BAR_COUNT; i++) {
     // Middle bars swing harder than the edges, the way a real level meter reads.
     const weight = 0.45 + 0.55 * Math.sin(((i + 0.5) / BAR_COUNT) * Math.PI);
-    const target = Math.min(1, level * weight * (0.75 + Math.random() * 0.5));
-    barLevels[i] += (target - barLevels[i]) * 0.35; // ease, or it strobes
+    const target = level * weight;
+    // Quick attack and a soft tail, consistent at different display refresh rates.
+    const tau = target > barLevels[i] ? 0.055 : 0.2;
+    barLevels[i] += (target - barLevels[i]) * (1 - Math.exp(-dt / tau));
     const h = Math.max(2, barLevels[i] * METER.h);
     barEls[i].setAttribute('y', METER.y + METER.h - h);
     barEls[i].setAttribute('height', h);

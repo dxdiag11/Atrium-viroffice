@@ -277,57 +277,57 @@ button:disabled { opacity:.55; cursor:wait; }
   position: fixed;
   right: 24px;
   top: 50%;
-  transform: translate(160%, -50%);
-  transition: transform 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+  z-index: 4;
+  opacity: 0;
+  transform: translate(160%, -46%) rotate(8deg);
+  transform-origin: 50% 85%;
+  transition: transform .55s cubic-bezier(.22, 1, .36, 1), opacity .25s ease;
   pointer-events: none;
-  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.55));
+  filter: drop-shadow(0 14px 18px #10180ed9);
 }
 
-#walkie.show { transform: translate(0, -50%); }
+#walkie.show { opacity: 1; transform: translate(0, -50%) rotate(-3deg); }
 
 /* the antenna waves animate outside the viewBox */
-#walkie svg { overflow: visible; }
+#walkie svg { display: block; overflow: visible; width: clamp(88px, 10vw, 120px); height: auto; max-height: 65dvh; }
 
 /* Listening: steady green light, quiet trim. */
-#walkie .led { fill: #4fd08a; animation: ledPulse 1.6s ease-in-out infinite; }
+#walkie .led { fill: #aec98c; filter: drop-shadow(0 0 3px #aec98c80); }
 #walkie .waves { opacity: 0; }
-#walkie .bars rect { fill: #6dffae; }
+#walkie .bars rect { fill: #bac98e; }
+#walkie .ptt, #walkie .shell, #walkie .ch, #walkie .mode, #walkie .who, #walkie .bars rect { transition: fill .2s ease, stroke .2s ease, transform .15s ease; }
 
-/* Transmitting: red light hammering away, antenna radiating, button pushed in. */
-#walkie.tx .shell { stroke: #a03c3c; }
-#walkie.tx .led { fill: #ff4d3d; animation: ledBlink 0.5s steps(1, end) infinite; }
-#walkie.tx .ptt { fill: #14181f; transform: translateX(2px); }
-#walkie.tx .ch, #walkie.tx .mode { fill: #ff8a6a; }
-#walkie.tx .who { fill: #c25a48; }
-#walkie.tx .bars rect { fill: #ff8a6a; }
+/* Transmitting glows like a lantern; receiving uses the cave's moss tones. */
+#walkie.tx .shell { stroke: #d6b575; }
+#walkie.tx .led { fill: #f3cf83; filter: drop-shadow(0 0 4px #e8bd70); animation: ledPulse 1.8s ease-in-out infinite; }
+#walkie.tx .ptt { fill: #7a623b; transform: translateX(2px); }
+#walkie.tx .ch, #walkie.tx .mode { fill: #f0d394; }
+#walkie.tx .who { fill: #dfc28b; }
+#walkie.tx .bars rect { fill: #e2be76; }
 #walkie.tx .waves { opacity: 1; }
 
 #walkie.tx .waves path {
   transform-box: fill-box;
   transform-origin: left center;
-  animation: waveOut 1.1s ease-out infinite;
+  animation: waveOut 1.8s ease-out infinite;
 }
-#walkie.tx .waves .w2 { animation-delay: 0.18s; }
-#walkie.tx .waves .w3 { animation-delay: 0.36s; }
-
-@keyframes ledBlink {
-  0%, 49% { opacity: 1; }
-  50%, 100% { opacity: 0.12; }
-}
+#walkie.tx .waves .w2 { animation-delay: 0.25s; }
+#walkie.tx .waves .w3 { animation-delay: 0.5s; }
 
 @keyframes ledPulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
+  50% { opacity: 0.6; }
 }
 
 @keyframes waveOut {
-  0% { opacity: 0; transform: scale(0.5); }
-  25% { opacity: 0.9; }
-  100% { opacity: 0; transform: scale(1.35); }
+  0% { opacity: 0; transform: translateX(-2px) scale(.92); }
+  25% { opacity: 0.75; }
+  100% { opacity: 0; transform: translateX(4px) scale(1.08); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #walkie, #walkie .led, #walkie .waves path { transition: none; animation: none; }
+  #walkie, #walkie * { transition: none !important; animation: none !important; }
+  #walkie.tx .waves { opacity: .45; }
 }
 /* --- Game menu (shown when you sit at a workstation) --- */
 #arcade {
