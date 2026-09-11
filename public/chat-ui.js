@@ -36,6 +36,18 @@ function addHistory(list) {
   (list || []).forEach(show);
 }
 
+// Walking in is a fresh start for the log, the same way it is for the bubbles. Without
+// this, re-entering after a dropped connection appends a second copy of the history on
+// top of the first: message ids restart with the server, so `rows` ends up pointing at
+// the new copy and every row above it is frozen -- a reaction or a vote clicked there is
+// sent, answered, and repainted onto a row nobody is looking at.
+function resetChat() {
+  rows.clear();
+  chatLog.textContent = '';
+  clearUnread();
+  setComposing(false);
+}
+
 // Rendered rows are kept by id because a reaction or a vote arrives long after the
 // message did, and the row it belongs to has to be found again to be repainted.
 const rows = new Map(); // message id -> { msg, row }
@@ -509,4 +521,4 @@ chatInput.addEventListener('keydown', (e) => {
 
 chatInput.setAttribute('maxlength', String(MAX_LEN));
 
-Object.assign(globalThis, { addMessage, addHistory, applyReaction, applyVote, focusChat, refreshSuggest, setComposing });
+Object.assign(globalThis, { addMessage, addHistory, resetChat, applyReaction, applyVote, focusChat, refreshSuggest, setComposing });

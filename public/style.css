@@ -60,7 +60,10 @@ button.on { background: #7a2b2b; border-color: #a03c3c; }
   display: flex;
   flex-direction: column;
   width: min(380px, calc(100vw - 132px));
-  height: min(360px, calc(100dvh - 140px));
+  /* A poll card is several rows tall, and a flat 360px cut a five-option one in half.
+     The floor keeps one whole poll visible; the ceiling stops the panel from swallowing
+     a tall monitor, and the last term keeps it clear of the dock on a short window. */
+  height: min(clamp(380px, 46vh, 520px), calc(100dvh - 140px));
   border-radius: 14px;
   background: linear-gradient(145deg, #303126fa, #1b231dfa);
   border: 1px solid #8b7650;

@@ -142,6 +142,7 @@ socket.on('players', (all, id, holder) => {
   joining=false;
   for (const oldId of Object.keys(players)) delete players[oldId];
   resetBubbles();
+  resetChat(); // the history that follows is the whole log, not an addition to the old one
   myId = id;
   radioHolder = holder || null;
   setSelfId(id);
