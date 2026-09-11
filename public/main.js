@@ -511,18 +511,28 @@ function draw(me) {
   if (background) ctx.drawImage(background, 0, 0, map.width, map.height);
 
   if (showRange) {
-    for (const [radius, color] of [[NEAR, '#4fd08a'], [FAR, '#4f7fd0']]) {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.setLineDash([6, 6]);
-      ctx.beginPath();
-      ctx.arc(me.x, me.y, radius, 0, Math.PI * 2);
-      ctx.stroke();
+    // Keep the nearby floor bright and shade the rest using the existing audio
+    // falloff. Sample the curve so the transition follows its squared rolloff.
+    const shade = ctx.createRadialGradient(me.x, me.y, NEAR, me.x, me.y, FAR);
+    for (let i = 0; i <= 24; i++) {
+      const t = i / 24;
+      const distance = NEAR + (FAR - NEAR) * t;
+      shade.addColorStop(t, 'rgba(10, 15, 22, ' + (0.88 * (1 - falloff(distance))) + ')');
     }
-    ctx.setLineDash([]);
+    ctx.fillStyle = shade;
+    ctx.fillRect(camX, camY, viewWidth, viewHeight);
   }
 
-  for (const p of Object.values(players).sort((a,b)=>a.ry-b.ry)) drawPlayer(p, p.id === myId);
+  for (const p of Object.values(players).sort((a,b)=>a.ry-b.ry)) {
+    ctx.save();
+    if (showRange && p.id !== myId) {
+      const distance = Math.hypot(p.rx - me.x, p.ry - me.y);
+      // Radio remains audible outside proximity range, so keep its speaker visible.
+      ctx.globalAlpha = Math.max(falloff(distance), radioGain(distance, p.id === radioHolder));
+    }
+    if (ctx.globalAlpha > 0) drawPlayer(p, p.id === myId);
+    ctx.restore();
+  }
 
   const near = nearestSeat(me);
   const hint =
