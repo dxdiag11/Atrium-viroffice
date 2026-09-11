@@ -33,19 +33,29 @@ needs https on **all four ports**, for the same hostname (the office reaches a g
 at `location.hostname:<port>`). Two ways to get there, both already wired into
 `docker-compose.yml`:
 
-1. **Give each container the certificate directly.** Put `cert.pem` + `key.pem` for
-   your real domain in `./certs/` on the host (same convention `make-cert.sh` uses
-   for LAN testing, just with a real certificate instead of a self-signed one) and
-   restart the stack — every container mounts that folder read-only and turns on
-   https by itself the moment it finds a cert there. No reverse proxy needed.
+1. **Give each container the certificate directly.** Put `cert.pem` + `key.pem` in
+   `./certs/` on the host and restart the stack (`docker compose up -d
+   --force-recreate`) — every container mounts that folder read-only and turns on
+   https by itself the moment it finds a cert there, no reverse proxy needed.
+   - Have a domain? Get a real one for it (certbot, your host's panel, etc.) and
+     drop it in — no more browser warning.
+   - Only have a public IP (no domain yet)? Run `./scripts/make-server-cert.sh`
+     (auto-detects the IP, or pass it as an argument) — it makes the same kind of
+     self-signed cert `make-cert.sh` makes for a LAN IP, just for your server's
+     public one.
 2. **Terminate TLS in front instead** (Caddy, nginx, Traefik, a cloud load balancer…)
    and forward plain http to the containers' published ports. If you go this route,
    leave `./certs/` empty so the containers themselves stay on http behind the proxy.
 
 Either way, open a firewall for 3100-3400 (or whatever you remap them to) and point
-DNS at the box. Self-signed certs still need each game port opened once and accepted
-in a normal tab before the office overlay will load it — a real certificate doesn't
-have that problem.
+DNS at the box if you have one. With a self-signed cert (option 1's second bullet),
+each of the four ports also needs opening once in a plain tab and clicking through
+the browser's warning (Advanced → Proceed) before the office overlay can load it — a
+real certificate doesn't have that problem.
+
+> **"Mic access failed: Cannot read properties of undefined (reading
+> 'getUserMedia')"** means the browser decided the page isn't https (or isn't
+> `localhost`) and didn't give it a `mediaDevices` API at all — this is the fix.
 
 ### What Docker doesn't change
 
