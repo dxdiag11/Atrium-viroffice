@@ -14,6 +14,7 @@ WORKDIR /app/games/impostor
 COPY --from=deps /app/games/impostor/node_modules ./node_modules
 COPY games/impostor/package*.json ./
 COPY games/impostor/server.js ./
+COPY games/impostor/map.js ./
 COPY games/impostor/public/ ./public/
 
 EXPOSE 3500

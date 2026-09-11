@@ -153,6 +153,11 @@
   }
   function nearEmergency() { const p = at(); return MAP && Math.hypot(MAP.emergency.x - p.x, MAP.emergency.y - p.y) < 74; }
   function nearLightsFix() { const p = at(); return MAP && Math.hypot(MAP.lightsFix.x - p.x, MAP.lightsFix.y - p.y) < 74; }
+  function nearVent() {
+    if (!MAP || !MAP.vents || !state.you || !state.you.impostor) return null;
+    const p = at();
+    return MAP.vents.find((v) => Math.hypot(v.x - p.x, v.y - p.y) < 74) || null;
+  }
   function killTarget() {
     if (!state.you || !state.you.impostor || !state.you.alive) return null;
     const p = at();
@@ -181,7 +186,29 @@
       kb.textContent = you.killIn > 0 ? you.killIn + 's' : 'BUNUH';
       const sb = $('sabotageBtn');
       sb.disabled = !playing || !alive || !state.lights || you.sabotageIn > 0;
+
+      const vb = $('ventBtn');
+      vb.classList.remove('hidden');
+      vb.disabled = !playing || !alive || !(you.vent || nearVent());
+      vb.textContent = you.vent ? 'KELUAR' : 'VENT';
     }
+    renderVentPanel();
+  }
+
+  // While inside a vent you can hop to any other vent on the same network.
+  function renderVentPanel() {
+    const panel = $('ventPanel');
+    const you = state.you;
+    if (!you || !you.vent || !MAP.vents) { panel.classList.add('hidden'); return; }
+    const here = MAP.vents.find((v) => v.id === you.vent);
+    if (!here) { panel.classList.add('hidden'); return; }
+    const others = MAP.vents.filter((v) => v.net === here.net && v.id !== here.id);
+    panel.classList.remove('hidden');
+    panel.innerHTML = '<span>Dari ' + esc(here.room) + ' ke:</span>' +
+      others.map((v) => '<button data-vent="' + v.id + '">' + esc(v.room) + '</button>').join('');
+    panel.querySelectorAll('[data-vent]').forEach((b) => {
+      b.onclick = () => socket.emit('us:vent-move', { to: b.dataset.vent });
+    });
   }
 
   $('useBtn').onclick = () => {
@@ -194,6 +221,10 @@
   $('reportBtn').onclick = () => socket.emit('us:report');
   $('killBtn').onclick = () => socket.emit('us:kill');
   $('sabotageBtn').onclick = () => socket.emit('us:sabotage');
+  $('ventBtn').onclick = () => {
+    if (!state || !state.you) return;
+    socket.emit(state.you.vent ? 'us:vent-exit' : 'us:vent-enter');
+  };
 
   // ---------------------------------------------------------- task minigames
   let taskOpen = null;
@@ -354,6 +385,7 @@
     if (k === 'e' && !$('useBtn').disabled) $('useBtn').click();
     if (k === 'r' && !$('reportBtn').disabled) $('reportBtn').click();
     if (k === 'q' && !$('killBtn').classList.contains('hidden') && !$('killBtn').disabled) $('killBtn').click();
+    if (k === 'f' && !$('ventBtn').classList.contains('hidden') && !$('ventBtn').disabled) $('ventBtn').click();
     if (k === 'escape' && taskOpen) closeTask();
   });
   window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
@@ -393,6 +425,140 @@
     c.arcTo(x, y, x + w, y, r);
     c.closePath();
   }
+  function hexA(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+
+  // Each room draws its own furniture from its style, so 15 rooms don't need 15
+  // hand-placed prop lists.
+  function drawRoomDecor(r, now) {
+    const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    const A = r.accent;
+    const box = (x, y, w, h, fill, stroke) => {
+      g.fillStyle = fill; roundRect(g, x, y, w, h, 5); g.fill();
+      if (stroke) { g.strokeStyle = stroke; g.lineWidth = 2; roundRect(g, x, y, w, h, 5); g.stroke(); }
+    };
+    const consoles = (n) => {
+      for (let i = 0; i < n; i++) {
+        const x = r.x + 24 + i * ((r.w - 48) / n);
+        box(x, r.y + 34, (r.w - 48) / n - 12, 26, '#131b30', hexA(A, .45));
+        g.fillStyle = hexA(A, .5);
+        g.fillRect(x + 6, r.y + 42, ((r.w - 48) / n - 24) * (0.4 + 0.5 * Math.abs(Math.sin(now / 700 + i))), 4);
+      }
+    };
+    switch (r.style) {
+      case 'reactor': {
+        const pulse = 0.55 + 0.45 * Math.abs(Math.sin(now / 520));
+        g.fillStyle = hexA(A, 0.12 * pulse);
+        g.beginPath(); g.arc(cx, cy + 12, 68, 0, 7); g.fill();
+        box(cx - 34, cy - 26, 68, 78, '#141c2e', hexA(A, .6));
+        g.fillStyle = hexA(A, 0.55 + 0.4 * pulse);
+        roundRect(g, cx - 20, cy - 12, 40, 50, 8); g.fill();
+        for (const sx of [-1, 1]) box(cx + sx * 62 - 10, cy - 4, 20, 56, '#131b30', hexA(A, .3));
+        break;
+      }
+      case 'engine': {
+        const pulse = 0.5 + 0.5 * Math.abs(Math.sin(now / 400));
+        box(r.x + 26, cy - 34, r.w - 52, 68, '#141c2e', hexA(A, .45));
+        g.fillStyle = hexA(A, 0.3 + 0.4 * pulse);
+        roundRect(g, r.x + 36, cy - 18, r.w - 72, 36, 16); g.fill();
+        g.strokeStyle = hexA(A, .35); g.lineWidth = 3;
+        for (let i = 1; i <= 3; i++) { g.beginPath(); g.moveTo(r.x + 26 + i * 22, r.y + r.h - 26); g.lineTo(r.x + 26 + i * 22, r.y + r.h - 8); g.stroke(); }
+        break;
+      }
+      case 'med': {
+        for (let i = 0; i < 2; i++) box(r.x + 30 + i * 84, cy - 6, 64, 34, '#141c2e', hexA(A, .45));
+        box(r.x + r.w - 66, r.y + 40, 44, 40, '#131b30', hexA(A, .4));
+        g.strokeStyle = hexA(A, .7); g.lineWidth = 2;
+        g.beginPath();
+        for (let i = 0; i < 40; i++) g.lineTo(r.x + r.w - 62 + i, r.y + 62 + Math.sin(i / 3 + now / 300) * 8 * (i % 9 === 0 ? 1.8 : 1));
+        g.stroke();
+        break;
+      }
+      case 'security': {
+        for (let i = 0; i < 4; i++) {
+          const x = r.x + 26 + (i % 2) * 82, y = r.y + 52 + Math.floor(i / 2) * 58;
+          box(x, y, 70, 46, '#0f1626', hexA(A, .45));
+          g.fillStyle = hexA(A, .18 + 0.12 * Math.abs(Math.sin(now / 600 + i)));
+          g.fillRect(x + 5, y + 5, 60, 36);
+        }
+        break;
+      }
+      case 'power': {
+        for (let i = 0; i < 5; i++) {
+          const x = r.x + 24 + i * ((r.w - 48) / 5);
+          box(x, r.y + 44, (r.w - 48) / 5 - 10, 54, '#141c2e', hexA(A, .4));
+          g.fillStyle = state.lights ? hexA(A, .7) : 'rgba(120,130,160,.35)';
+          g.beginPath(); g.arc(x + ((r.w - 48) / 5 - 10) / 2, r.y + 60, 5, 0, 7); g.fill();
+        }
+        break;
+      }
+      case 'storage': {
+        for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) {
+          if ((i + j) % 3 === 2) continue;
+          box(r.x + 28 + i * 82, r.y + 58 + j * 78, 64, 62, '#182136', hexA(A, .4));
+          g.strokeStyle = hexA(A, .25); g.lineWidth = 2;
+          g.beginPath(); g.moveTo(r.x + 28 + i * 82, r.y + 89 + j * 78); g.lineTo(r.x + 92 + i * 82, r.y + 89 + j * 78); g.stroke();
+        }
+        break;
+      }
+      case 'social': {
+        g.fillStyle = '#141c2e';
+        g.beginPath(); g.ellipse(cx, cy + 20, 92, 58, 0, 0, 7); g.fill();
+        g.strokeStyle = hexA(A, .45); g.lineWidth = 3; g.stroke();
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2;
+          box(cx + Math.cos(a) * 118 - 14, cy + 20 + Math.sin(a) * 84 - 14, 28, 28, '#182136', hexA(A, .3));
+        }
+        consoles(3);
+        break;
+      }
+      case 'command': { consoles(3); box(cx - 44, cy + 14, 88, 44, '#141c2e', hexA(A, .45)); break; }
+      case 'comms': {
+        box(cx - 50, cy - 16, 100, 58, '#141c2e', hexA(A, .45));
+        g.strokeStyle = hexA(A, .5); g.lineWidth = 2.5;
+        for (let i = 1; i <= 3; i++) {
+          g.globalAlpha = 0.3 + 0.5 * Math.abs(Math.sin(now / 500 - i));
+          g.beginPath(); g.arc(cx, cy - 16, 14 * i, Math.PI * 1.15, Math.PI * 1.85); g.stroke();
+        }
+        g.globalAlpha = 1;
+        break;
+      }
+      case 'shield': {
+        g.strokeStyle = hexA(A, .4); g.lineWidth = 4;
+        for (let i = 1; i <= 3; i++) { g.beginPath(); g.arc(cx, cy + 40, 26 * i, Math.PI, Math.PI * 2); g.stroke(); }
+        box(cx - 30, cy + 30, 60, 34, '#141c2e', hexA(A, .5));
+        break;
+      }
+      case 'o2': {
+        for (let i = 0; i < 3; i++) {
+          box(r.x + 26 + i * 56, cy - 30, 38, 74, '#141c2e', hexA(A, .45));
+          g.fillStyle = hexA(A, .35);
+          roundRect(g, r.x + 32 + i * 56, cy - 6 + Math.sin(now / 600 + i) * 4, 26, 44, 10); g.fill();
+        }
+        break;
+      }
+      case 'lab': {
+        for (let i = 0; i < 4; i++) {
+          const x = r.x + 26 + i * 48;
+          box(x, cy - 4, 32, 44, '#141c2e', hexA(A, .4));
+          g.fillStyle = hexA(A, .45 + 0.25 * Math.abs(Math.sin(now / 450 + i)));
+          roundRect(g, x + 6, cy + 12, 20, 24, 6); g.fill();
+        }
+        break;
+      }
+      case 'weapons': {
+        box(cx - 40, cy - 8, 80, 52, '#141c2e', hexA(A, .5));
+        g.strokeStyle = hexA(A, .55); g.lineWidth = 3;
+        g.beginPath(); g.arc(cx, cy + 18, 30, Math.PI, Math.PI * 2); g.stroke();
+        g.beginPath(); g.moveTo(cx, cy - 8); g.lineTo(cx, cy - 34); g.stroke();
+        break;
+      }
+      default: consoles(2);
+    }
+  }
+
   function shade(hex, amt) {
     const n = parseInt(hex.slice(1), 16);
     const cl = (v) => Math.max(0, Math.min(255, v));
@@ -493,20 +659,52 @@
     g.scale(SCALE, SCALE);
     g.translate(-cam.x, -cam.y);
 
-    // floor
+    // ---- floor: walls first, then rooms and corridors on top ----
+    for (const r of [...MAP.halls, ...MAP.rooms]) {
+      g.fillStyle = '#0b1020';
+      roundRect(g, r.x - 7, r.y - 7, r.w + 14, r.h + 14, 18); g.fill();
+    }
     for (const r of MAP.halls) {
-      g.fillStyle = '#182036';
+      g.fillStyle = '#171f36';
       roundRect(g, r.x, r.y, r.w, r.h, 8); g.fill();
+      g.strokeStyle = 'rgba(120,145,205,.10)'; g.lineWidth = 1;
+      const along = r.w > r.h;
+      for (let d = 40; d < (along ? r.w : r.h); d += 40) {
+        g.beginPath();
+        if (along) { g.moveTo(r.x + d, r.y + 6); g.lineTo(r.x + d, r.y + r.h - 6); }
+        else { g.moveTo(r.x + 6, r.y + d); g.lineTo(r.x + r.w - 6, r.y + d); }
+        g.stroke();
+      }
     }
     for (const r of MAP.rooms) {
-      g.fillStyle = '#1d2742';
+      g.fillStyle = '#1b2540';
       roundRect(g, r.x, r.y, r.w, r.h, 14); g.fill();
-      g.strokeStyle = '#31406b'; g.lineWidth = 3;
+      // floor grid
+      g.save();
+      roundRect(g, r.x, r.y, r.w, r.h, 14); g.clip();
+      g.strokeStyle = 'rgba(120,145,205,.07)'; g.lineWidth = 1;
+      for (let x = r.x + 44; x < r.x + r.w; x += 44) { g.beginPath(); g.moveTo(x, r.y); g.lineTo(x, r.y + r.h); g.stroke(); }
+      for (let y = r.y + 44; y < r.y + r.h; y += 44) { g.beginPath(); g.moveTo(r.x, y); g.lineTo(r.x + r.w, y); g.stroke(); }
+      drawRoomDecor(r, now);
+      g.restore();
+      // accent trim + label
+      g.strokeStyle = hexA(r.accent, 0.35); g.lineWidth = 3;
       roundRect(g, r.x + 1.5, r.y + 1.5, r.w - 3, r.h - 3, 13); g.stroke();
-      g.fillStyle = 'rgba(150,170,220,.28)';
-      g.font = '600 13px Rubik, sans-serif';
+      g.fillStyle = hexA(r.accent, 0.5);
+      g.font = '700 13px Rubik, sans-serif';
       g.textAlign = 'center';
-      g.fillText(r.name.toUpperCase(), r.x + r.w / 2, r.y + 22);
+      g.fillText(r.name.toUpperCase(), r.x + r.w / 2, r.y + 24);
+    }
+
+    // ---- vents (impostors and ghosts see them highlighted) ----
+    const showVents = state.you && (state.you.impostor || !state.you.alive);
+    for (const v of MAP.vents || []) {
+      g.fillStyle = showVents ? '#2f6f8f' : '#202a44';
+      roundRect(g, v.x - 15, v.y - 11, 30, 22, 5); g.fill();
+      g.strokeStyle = showVents ? '#7fd4f0' : '#2c3a5c'; g.lineWidth = 2;
+      roundRect(g, v.x - 15, v.y - 11, 30, 22, 5); g.stroke();
+      g.strokeStyle = showVents ? 'rgba(180,235,255,.7)' : 'rgba(140,165,220,.35)'; g.lineWidth = 1.5;
+      for (let i = -6; i <= 6; i += 6) { g.beginPath(); g.moveTo(v.x - 10, v.y + i); g.lineTo(v.x + 10, v.y + i); g.stroke(); }
     }
 
     // stations
@@ -549,6 +747,8 @@
     for (const p of state.players) {
       if (p.you) continue;
       if (!p.alive && !iAmGhost) continue;                 // ghosts are invisible to the living
+      // Someone inside a vent is out of sight unless you are an impostor or dead.
+      if (p.vented && !iAmGhost && !(state.you && state.you.impostor)) continue;
       const bob = Math.abs(Math.sin(now / 130 + p.x)) * 1.5;
       drawBean(p.x, p.y, p.color, { alpha: p.alive ? 1 : 0.45, bob });
       g.fillStyle = p.alive ? '#dbe3f5' : 'rgba(219,227,245,.5)';

@@ -18,66 +18,23 @@ const server = createServer(app);
 const io = new Server(server, { pingInterval: 10000, pingTimeout: 10000 });
 const PORT = process.env.PORT || 3500;
 
-// ---------------------------------------------------------------- map
-const W = 1400, H = 860;
-
-const ROOMS = [
-  { name: 'Reaktor',     x: 60,   y: 40,  w: 240, h: 170 },
-  { name: 'Kafetaria',   x: 560,  y: 40,  w: 300, h: 230 },
-  { name: 'Senjata',     x: 980,  y: 60,  w: 200, h: 160 },
-  { name: 'Navigasi',    x: 1140, y: 340, w: 200, h: 160 },
-  { name: 'Perisai',     x: 940,  y: 600, w: 220, h: 180 },
-  { name: 'Komunikasi',  x: 620,  y: 620, w: 220, h: 160 },
-  { name: 'Gudang',      x: 330,  y: 560, w: 220, h: 200 },
-  { name: 'Kelistrikan', x: 60,   y: 520, w: 220, h: 180 },
-  { name: 'Medbay',      x: 100,  y: 240, w: 220, h: 200 },
-  { name: 'Admin',       x: 600,  y: 340, w: 200, h: 140 },
-];
-
-// Corridors. Each one overlaps the two rooms it joins by ~20px so walking
-// between them is continuous — the walkable area is just the union of rects.
-const HALLS = [
-  { x: 280,  y: 100, w: 300, h: 60 },   // Reaktor    - Kafetaria
-  { x: 160,  y: 190, w: 80,  h: 80 },   // Reaktor    - Medbay
-  { x: 160,  y: 420, w: 80,  h: 120 },  // Medbay     - Kelistrikan
-  { x: 260,  y: 580, w: 90,  h: 60 },   // Kelistrikan- Gudang
-  { x: 530,  y: 660, w: 110, h: 60 },   // Gudang     - Komunikasi
-  { x: 820,  y: 660, w: 140, h: 60 },   // Komunikasi - Perisai
-  { x: 1120, y: 480, w: 80,  h: 140 },  // Perisai    - Navigasi
-  { x: 1100, y: 200, w: 80,  h: 170 },  // Senjata    - Navigasi
-  { x: 840,  y: 110, w: 160, h: 60 },   // Kafetaria  - Senjata
-  { x: 660,  y: 250, w: 80,  h: 110 },  // Kafetaria  - Admin
-  { x: 300,  y: 380, w: 320, h: 60 },   // Medbay     - Admin
-];
-
-const STATIONS = [
-  { id: 'reactor', name: 'Mulai ulang reaktor', room: 'Reaktor',     x: 150,  y: 120, kind: 'sequence' },
-  { id: 'cafe',    name: 'Buang sampah',        room: 'Kafetaria',   x: 620,  y: 225, kind: 'hold' },
-  { id: 'weapons', name: 'Kalibrasi senjata',   room: 'Senjata',     x: 1080, y: 130, kind: 'sequence' },
-  { id: 'nav',     name: 'Atur jalur',          room: 'Navigasi',    x: 1250, y: 420, kind: 'wires' },
-  { id: 'shields', name: 'Aktifkan perisai',    room: 'Perisai',     x: 1050, y: 690, kind: 'sequence' },
-  { id: 'comms',   name: 'Unduh data',          room: 'Komunikasi',  x: 720,  y: 700, kind: 'hold' },
-  { id: 'storage', name: 'Isi bahan bakar',     room: 'Gudang',      x: 430,  y: 650, kind: 'hold' },
-  { id: 'elec',    name: 'Sambung kabel',       room: 'Kelistrikan', x: 130,  y: 600, kind: 'wires' },
-  { id: 'medbay',  name: 'Pindai tubuh',        room: 'Medbay',      x: 200,  y: 330, kind: 'hold' },
-  { id: 'admin',   name: 'Gesek kartu',         room: 'Admin',       x: 700,  y: 410, kind: 'wires' },
-];
-
-const EMERGENCY = { x: 770, y: 150 };            // Kafetaria
-const LIGHTS_FIX = { x: 235, y: 650 };           // Kelistrikan
-const SPAWN = { x: 700, y: 150 };
+// ---------------------------------------------------------------- map + tuning
+const MAP = require('./map');
+const {
+  W, H, ROOMS, HALLS, STATIONS, VENTS, EMERGENCY, LIGHTS_FIX, SPAWN,
+  NODES, walkable, routeTo,
+} = MAP;
 
 const COLORS = ['#f0463c', '#3b7cf0', '#37b36a', '#e85fb0', '#f08a2c',
   '#f2df52', '#3f4756', '#e9eef5', '#7d4fd1', '#4bc6c6'];
 const BOT_NAMES = ['Bagas', 'Sari', 'Rizki', 'Putri', 'Dimas', 'Ayu', 'Fajar', 'Nadia', 'Yoga', 'Intan'];
 
-// ---------------------------------------------------------------- tuning
 const MIN_PLAYERS = 4, MAX_PLAYERS = 10, BOT_FILL_TO = 6;
 const PLAYER_R = 16;
 const SPEED = 190;                 // px/s, used by bots and to bound human moves
 const KILL_RANGE = 74, KILL_COOLDOWN = 25, FIRST_KILL_DELAY = 12;
 const REPORT_RANGE = 95, USE_RANGE = 78;
-const MEETING_SECS = 45, TASKS_EACH = 4;
+const MEETING_SECS = 45, TASKS_EACH = 5;
 const SABOTAGE_COOLDOWN = 35;
 const TICK_MS = 66;                // ~15 Hz
 
@@ -85,53 +42,9 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0;[a[i], a[j]] = [a[j], a[i]]; } return a; };
 const rnd = (a) => a[(Math.random() * a.length) | 0];
+const ventById = (id) => VENTS.find((v) => v.id === id);
 
-const RECTS = [...ROOMS, ...HALLS];
-const inRect = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
-const walkable = (x, y) => RECTS.some((r) => inRect(r, x, y));
 
-// Waypoint graph so bots can actually get somewhere: one node per rect, an edge
-// wherever two rects overlap (which is exactly where you can walk between them).
-const NODES = RECTS.map((r) => ({ r, x: r.x + r.w / 2, y: r.y + r.h / 2 }));
-const EDGES = NODES.map(() => []);
-for (let i = 0; i < NODES.length; i++) {
-  for (let j = i + 1; j < NODES.length; j++) {
-    const a = NODES[i].r, b = NODES[j].r;
-    const overlap = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-    if (overlap) { EDGES[i].push(j); EDGES[j].push(i); }
-  }
-}
-const nodeAt = (x, y) => NODES.findIndex((n) => inRect(n.r, x, y));
-
-// Waypoints are doorway centres -- the middle of where two rects overlap -- not room
-// centres. Both ends of every segment then sit inside one convex rect, so walking the
-// straight line between them can never clip a corner and wedge a bot.
-function overlapCenter(a, b) {
-  const x1 = Math.max(a.x, b.x), x2 = Math.min(a.x + a.w, b.x + b.w);
-  const y1 = Math.max(a.y, b.y), y2 = Math.min(a.y + a.h, b.y + b.h);
-  return { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
-}
-
-function routeTo(fromX, fromY, toX, toY) {
-  const s = nodeAt(fromX, fromY), t = nodeAt(toX, toY);
-  if (s < 0 || t < 0 || s === t) return [{ x: toX, y: toY }];
-  const prev = new Map([[s, -1]]);
-  const q = [s];
-  while (q.length) {
-    const cur = q.shift();
-    if (cur === t) break;
-    for (const nx of EDGES[cur]) if (!prev.has(nx)) { prev.set(nx, cur); q.push(nx); }
-  }
-  if (!prev.has(t)) return [{ x: toX, y: toY }];
-  const idx = [];
-  for (let cur = t; cur !== -1; cur = prev.get(cur)) idx.unshift(cur);
-  const path = [];
-  for (let i = 0; i + 1 < idx.length; i++) path.push(overlapCenter(NODES[idx[i]].r, NODES[idx[i + 1]].r));
-  path.push({ x: toX, y: toY });
-  return path;
-}
-
-// ---------------------------------------------------------------- state
 let G = null;
 
 function fresh() {
@@ -158,7 +71,7 @@ function makePlayer(id, name, color, bot) {
   return {
     id, name, color, bot: !!bot,
     x: SPAWN.x, y: SPAWN.y, alive: true, impostor: false,
-    tasks: [], killAt: 0, meetings: 1, connected: true,
+    tasks: [], killAt: 0, meetings: 1, connected: true, vent: null,
     path: null, goal: null, actAt: 0, voteAt: 0,
   };
 }
@@ -188,7 +101,7 @@ function startRound() {
     p.y = SPAWN.y + (Math.random() - 0.5) * 60;
     p.killAt = Date.now() + FIRST_KILL_DELAY * 1000;
     p.meetings = 1;
-    p.path = null; p.goal = null; p.actAt = 0;
+    p.path = null; p.goal = null; p.actAt = 0; p.vent = null;
     // Impostors get the same list so they can fake it; only crew progress counts.
     p.tasks = shuffle([...STATIONS]).slice(0, TASKS_EACH).map((s) => ({ id: s.id, done: false }));
   });
@@ -264,6 +177,7 @@ function callMeeting(by, reason, bodyColor) {
   G.phase = 'MEETING';
   G.meeting = { by: by.name, reason, bodyColor: bodyColor || null, votes: new Map(), endsAt: Date.now() + MEETING_SECS * 1000, result: null };
   for (const p of roster()) {
+    p.vent = null;                       // a meeting pulls everyone out of the vents
     if (p.alive) { p.x = SPAWN.x + (Math.random() - 0.5) * 120; p.y = SPAWN.y + (Math.random() - 0.5) * 80; }
     p.path = null; p.goal = null;
     p.voteAt = Date.now() + 5000 + Math.random() * 22000;   // bots make up their minds
@@ -396,6 +310,7 @@ function botStep(p, dt) {
 // ---------------------------------------------------------------- actions
 function doKill(killer, victim) {
   if (!killer.impostor || !killer.alive || !victim.alive || victim.impostor) return;
+  if (killer.vent) return;            // climb out first
   if (Date.now() < killer.killAt) return;
   victim.alive = false;
   G.bodies.push({ id: victim.id, name: victim.name, color: victim.color, x: victim.x, y: victim.y });
@@ -435,6 +350,7 @@ function viewFor(id) {
       id: pid, name: p.name, color: p.color, bot: p.bot,
       x: Math.round(p.x), y: Math.round(p.y),
       alive: p.alive, host: pid === G.host,
+      vented: !!p.vent,                 // hidden from everyone but the impostors
       impostor: known ? p.impostor : null,
       you: pid === id,
     };
@@ -454,6 +370,7 @@ function viewFor(id) {
     you: me ? {
       id, alive: me.alive, impostor: me.impostor, ghost,
       tasks: me.tasks.map((t) => ({ ...t, ...STATIONS.find((s) => s.id === t.id) })),
+      vent: me.vent || null,
       killIn: Math.max(0, Math.ceil((me.killAt - Date.now()) / 1000)),
       sabotageIn: Math.max(0, Math.ceil((G.sabotageAt - Date.now()) / 1000)),
       meetings: me.meetings,
@@ -468,7 +385,10 @@ function broadcast() {
 
 // ---------------------------------------------------------------- sockets
 io.on('connection', (socket) => {
-  socket.emit('us:map', { w: W, h: H, rooms: ROOMS, halls: HALLS, stations: STATIONS, emergency: EMERGENCY, lightsFix: LIGHTS_FIX });
+  socket.emit('us:map', {
+    w: W, h: H, rooms: ROOMS, halls: HALLS, stations: STATIONS, vents: VENTS,
+    emergency: EMERGENCY, lightsFix: LIGHTS_FIX,
+  });
 
   socket.on('us:join', (msg) => {
     ensure();
@@ -563,6 +483,32 @@ io.on('connection', (socket) => {
     G.meeting.votes.set(socket.id, t);
     broadcast();
     if (living().every((q) => G.meeting.votes.has(q.id))) setTimeout(resolveMeeting, 400);
+  });
+
+  // ---- vents: impostor-only shortcuts ----
+  socket.on('us:vent-enter', () => {
+    const p = P(socket.id);
+    if (!p || !G || G.phase !== 'PLAYING' || !p.alive || !p.impostor || p.vent) return;
+    const v = VENTS.find((x) => dist(p, x) <= USE_RANGE);
+    if (!v) return;
+    p.vent = v.id; p.x = v.x; p.y = v.y;
+    broadcast();
+  });
+
+  socket.on('us:vent-move', (msg) => {
+    const p = P(socket.id);
+    if (!p || !G || G.phase !== 'PLAYING' || !p.alive || !p.impostor || !p.vent || !msg) return;
+    const from = ventById(p.vent), to = ventById(msg.to);
+    if (!from || !to || to.net !== from.net || to.id === from.id) return;
+    p.vent = to.id; p.x = to.x; p.y = to.y;
+    broadcast();
+  });
+
+  socket.on('us:vent-exit', () => {
+    const p = P(socket.id);
+    if (!p || !G || G.phase !== 'PLAYING' || !p.vent) return;
+    p.vent = null;
+    broadcast();
   });
 
   socket.on('us:leave', () => drop(socket.id, true));
