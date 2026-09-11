@@ -1,0 +1,90 @@
+{
+  "size": [
+    1800,
+    2400
+  ],
+  "panels": {
+    "left": {
+      "mode": "RGBA",
+      "source_size": [
+        1086,
+        1448
+      ],
+      "size": [
+        1800,
+        2400
+      ],
+      "transparent_pixels": 428934,
+      "antialiased_pixels": 13393,
+      "opaque_body_min_alpha": 255,
+      "outer_edge_min_alpha": 255,
+      "interior_pinholes": 0,
+      "source_opaque_body_fraction": 0.6584,
+      "final_guaranteed_body_fraction": 0.8
+    },
+    "right": {
+      "mode": "RGBA",
+      "source_size": [
+        1086,
+        1448
+      ],
+      "size": [
+        1800,
+        2400
+      ],
+      "transparent_pixels": 473276,
+      "antialiased_pixels": 15471,
+      "opaque_body_min_alpha": 255,
+      "outer_edge_min_alpha": 255,
+      "interior_pinholes": 0,
+      "source_opaque_body_fraction": 0.6197,
+      "final_guaranteed_body_fraction": 0.8
+    }
+  },
+  "coverage": [
+    {
+      "viewport": [
+        390,
+        844
+      ],
+      "panel_rendered": [
+        697,
+        929
+      ],
+      "uncovered_pixels": 0
+    },
+    {
+      "viewport": [
+        1920,
+        1080
+      ],
+      "panel_rendered": [
+        1344,
+        1792
+      ],
+      "uncovered_pixels": 0
+    },
+    {
+      "viewport": [
+        3440,
+        1440
+      ],
+      "panel_rendered": [
+        2408,
+        3211
+      ],
+      "uncovered_pixels": 0
+    },
+    {
+      "viewport": [
+        844,
+        390
+      ],
+      "panel_rendered": [
+        591,
+        788
+      ],
+      "uncovered_pixels": 0
+    }
+  ]
+}
