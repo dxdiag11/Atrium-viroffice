@@ -304,6 +304,9 @@ window.addEventListener('keydown', (e) => {
     return focusChat();
   }
   if (e.key === '`' && !e.repeat) toggleRange();
+  if (key === 'v' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.isContentEditable) {
+    document.getElementById('mute').click();
+  }
   if (key === 'e' && !e.repeat && players[myId]) toggleSit(players[myId]);
   // keydown repeats while a key is held, so ask the channel only on the first one.
   if (key === 't' && !held.has('t') && myId) socket.emit('ptt-down');
