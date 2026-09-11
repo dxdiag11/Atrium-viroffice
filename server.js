@@ -140,6 +140,7 @@ io.on('connection', (socket) => {
       characterId: character.id,
       direction: 'down',
       speaking: false,
+      dnd: false,
       typing: false,
       x: spawn.x,
       y: spawn.y,
@@ -236,6 +237,17 @@ io.on('connection', (socket) => {
 
   socket.on('typing', setTyping);
 
+  // Do Not Disturb lives on the server for the same reason a seat does: everyone else
+  // has to see it, or they walk over and talk into a mic that is already off.
+  socket.on('dnd', on => {
+    const p=players[socket.id];
+    if (!p || typeof on !== 'boolean' || p.dnd === on) return;
+    p.dnd=on;
+    // Holding the channel with the mic cut would lock everyone out for 30s of dead air.
+    if (on && radio === socket.id) releaseRadio(io);
+    socket.broadcast.emit('player-dnd', {id:socket.id,on});
+  });
+
   socket.on('speaking', on => {
     const p=players[socket.id];
     if (!p || typeof on !== 'boolean' || p.speaking === on) return;
@@ -275,6 +287,7 @@ io.on('connection', (socket) => {
 
   socket.on('ptt-down', () => {
     if (!players[socket.id]) return;
+    if (players[socket.id].dnd) return; // muted mic: the transmission would be dead air
     if (radio && radio !== socket.id) return socket.emit('radio-busy', radio);
 
     radio = socket.id;

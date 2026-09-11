@@ -389,3 +389,14 @@ test('toggleReaction only accepts the palette and drops empty entries', () => {
   assert.strictEqual(toggleReaction(msg, '', budi), false);
   assert.deepStrictEqual(msg.reactions, {});
 });
+
+test('do not disturb silences every incoming voice, near or over the radio', () => {
+  // Proximity: normally audible at arm's length, silent under DND at the same spot.
+  assert.strictEqual(voiceGain(NEAR, false), 1);
+  assert.strictEqual(voiceGain(NEAR, true), 0);
+  assert.strictEqual(voiceGain((NEAR + FAR) / 2, true), 0);
+
+  // The radio reaches across the whole floor, so it is the branch DND has to cut too.
+  assert.strictEqual(radioGain(FAR + 100, true, false), RADIO_LEVEL);
+  assert.strictEqual(radioGain(FAR + 100, true, true), 0);
+});

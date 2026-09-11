@@ -21,6 +21,7 @@ let sentX = null;
 let sentY = null;
 let selectedCharacter = 'male-001';
 let joining = false;
+let dndOn = false;      // Do Not Disturb: mic off, and every incoming voice silenced
 let assetsReady = false;
 let mapPromise = null;
 try {
@@ -120,13 +121,37 @@ document.getElementById('join').addEventListener('click', async (e) => {
   }
 });
 
+// One place decides whether the mic is live, because two switches control it: the mute
+// button and Do Not Disturb. Leaving DND must not unmute someone who muted by hand.
+function applyMic() {
+  setMuted(dndOn || document.getElementById('mute').classList.contains('on'));
+}
+
 document.getElementById('mute').addEventListener('click', (e) => {
   const on = e.currentTarget.classList.toggle('on');
-  setMuted(on);
+  applyMic();
   e.currentTarget.setAttribute('aria-pressed', String(on));
   e.currentTarget.setAttribute('aria-label', on ? 'Unmute microphone' : 'Mute microphone');
   document.getElementById('mic-label').textContent = on ? 'Mic off' : 'Mic on';
 });
+
+function toggleDnd() {
+  const button = document.getElementById('dnd');
+  dndOn = button.classList.toggle('on');
+  setDnd(dndOn);
+  applyMic();
+  // Silencing the floor while still holding the channel open would strand everyone
+  // else on dead air until the server's timeout.
+  if (dndOn && held.has('t')) socket.emit('ptt-up');
+  if (dndOn) hideWalkie();
+  else if (radioHolder) showWalkie((players[radioHolder]||{}).name||'', radioHolder===myId);
+  socket.emit('dnd', dndOn);
+  button.setAttribute('aria-pressed', String(dndOn));
+  button.setAttribute('aria-label', dndOn ? 'Turn off do not disturb' : 'Turn on do not disturb');
+  document.getElementById('dnd-label').textContent = dndOn ? 'Do not disturb on' : 'Do not disturb off';
+  document.getElementById('hud').classList.toggle('dnd', dndOn);
+}
+document.getElementById('dnd').addEventListener('click', toggleDnd);
 
 function toggleRange() {
   showRange = !showRange;
@@ -194,6 +219,7 @@ socket.on('player-moved', ({ id, x, y, direction }) => {
 });
 
 socket.on('player-speaking',({id,on})=>{if(players[id]) players[id].speaking=on;});
+socket.on('player-dnd',({id,on})=>{if(players[id]) players[id].dnd=on;});
 socket.on('player-typing',({id,on})=>{if(players[id]) setTyping(id,on);});
 socket.on('position-corrected',({x,y})=>{
   const me=players[myId];
@@ -210,8 +236,11 @@ socket.on('player-left', (id) => {
 
 socket.on('radio', ({ id, on }) => {
   radioHolder = on ? id : null;
-  playSquelch(on);
   renderRadio();
+  // The transmission is silenced under Do Not Disturb, so neither the squelch click nor
+  // the handset should arrive either: a handset for audio you cannot hear is just noise.
+  if (dndOn) return hideWalkie();
+  playSquelch(on);
 
   if (on) {
     const who = players[id];
@@ -271,7 +300,7 @@ function addPlayer(p) {
 
 const walkieButton = document.getElementById('walkie-button');
 function pressWalkie() {
-  if (!myId || held.has('t')) return;
+  if (!myId || held.has('t') || dndOn) return;
   held.add('t');
   socket.emit('ptt-down');
 }
@@ -315,9 +344,12 @@ window.addEventListener('keydown', (e) => {
   if (key === 'v' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.isContentEditable) {
     document.getElementById('mute').click();
   }
+  if (key === 'm' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.isContentEditable) {
+    toggleDnd();
+  }
   if (key === 'e' && !e.repeat && players[myId]) toggleSit(players[myId]);
   // keydown repeats while a key is held, so ask the channel only on the first one.
-  if (key === 't' && !held.has('t') && myId) socket.emit('ptt-down');
+  if (key === 't' && !held.has('t') && myId && !dndOn) socket.emit('ptt-down');
   held.add(key);
 });
 
@@ -635,11 +667,21 @@ function drawPlayer(p, isSelf) {
   ctx.font = '12px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillStyle = '#e8eaf0';
-  const label=p.name+(isSpeaking?' · speaking':'');
+  const label=p.name+(p.dnd?' · DND':isSpeaking?' · speaking':'');
   const width=ctx.measureText(label).width+14;
   ctx.fillStyle='rgba(12,24,20,.88)';ctx.fillRect(p.rx-width/2,p.ry-85,width,18);
   ctx.fillStyle=isSelf?'#f4dfb1':'#edf1e6';
   ctx.fillText(label, p.rx, p.ry-72);
+
+  // The same badge the dock shows, above the name: the label alone only reads once you
+  // are close enough to squint at it, and the whole point is to be read from across
+  // the floor before anyone bothers walking over.
+  if (p.dnd) {
+    ctx.beginPath();ctx.arc(p.rx,p.ry-97,8,0,Math.PI*2);
+    ctx.fillStyle='#4e3027';ctx.fill();
+    ctx.strokeStyle='#e0846a';ctx.lineWidth=2;ctx.stroke();
+    ctx.beginPath();ctx.moveTo(p.rx-4,p.ry-97);ctx.lineTo(p.rx+4,p.ry-97);ctx.stroke();
+  }
 }
 
 // Audio runs on a timer, not on rAF: a hidden tab pauses rAF entirely, which would

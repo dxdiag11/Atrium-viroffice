@@ -36,6 +36,9 @@ html, body {
 #hud .dock-control:hover { background: #414333; border-color: #bda875; color: #fff0c9; }
 #hud .dock-control[aria-pressed="true"], #hud .dock-control[aria-expanded="true"] { color: #f0d394; background: #514932; border-color: #b89959; }
 #hud #mute.on { color: #f0a58b; background: #4e3027; border-color: #b66f4d; }
+#hud #dnd.on { color: #f0a58b; background: #4e3027; border-color: #b66f4d; }
+/* Everything else in the dock is inert while the floor is silenced, so say so. */
+#hud.dnd #mute, #hud.dnd #walkie-button { opacity: .45; }
 #hud .dock-key { position: absolute; right: 3px; top: 2px; min-width: 11px; font: 600 9px/12px system-ui, sans-serif; text-align: center; color: #f0dfb8; background: #171d17; border-radius: 3px; pointer-events: none; }
 #hud #chat-badge { position: absolute; right: -4px; bottom: -4px; min-width: 17px; background: #dac087; color: #24281e; font-size: 10px; padding: 0 4px; border: 2px solid #292b22; }
 

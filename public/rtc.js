@@ -1,4 +1,4 @@
-// WebRTC mesh + per-peer spatial gain. Globals used: socket, falloff, NEAR, FAR.
+// WebRTC mesh + per-peer spatial gain. Globals used: socket, voiceGain, radioGain, FAR.
 
 const PC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
@@ -12,6 +12,7 @@ let noiseBuffer = null;  // one second of noise, sliced for squelch bursts
 let voiceMeter = null;
 let voiceSamples = null;
 let speakingUntil = 0;
+let dnd = false;         // Do Not Disturb: nothing incoming is audible while this is on
 
 // id -> { pc, polite, makingOffer, ignoreOffer, gain, panner, element }
 const peers = {};
@@ -97,6 +98,12 @@ function getAudioCtx() {
 
 function setSelfId(id) {
   selfId = id;
+}
+
+// Only the listening half lives here. The mic is the caller's business, because a
+// manual mute has to survive Do Not Disturb being switched back off.
+function setDnd(on) {
+  dnd = on;
 }
 
 function setMuted(muted) {
@@ -233,7 +240,7 @@ function updateSpatialAudio(me, players, radioHolder) {
 
     const dx = other.x - me.x;
     const dy = other.y - me.y;
-    const gain = falloff(Math.hypot(dx, dy));
+    const gain = voiceGain(Math.hypot(dx, dy), dnd);
     if (gain > 0) audible++;
 
     // setTargetAtTime instead of .value: ramps smoothly, no zipper noise.
@@ -241,7 +248,7 @@ function updateSpatialAudio(me, players, radioHolder) {
     peer.panner.pan.setTargetAtTime(Math.max(-1, Math.min(1, dx / FAR)), now, 0.08);
 
     // A radio keys up sharply, so this one gets a much shorter time constant.
-    const overRadio = radioGain(Math.hypot(dx, dy), id === radioHolder);
+    const overRadio = radioGain(Math.hypot(dx, dy), id === radioHolder, dnd);
     peer.radio.gain.setTargetAtTime(overRadio, now, 0.02);
   }
   return audible;
