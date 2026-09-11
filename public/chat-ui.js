@@ -449,8 +449,14 @@ function sendChat() {
 
 function setCollapsed(on) {
   chatPanel.classList.toggle('collapsed', on);
-  chatToggle.textContent = on ? '+' : '\u2212';
-  if (!on) clearUnread();
+  document.getElementById('chat-open').setAttribute('aria-expanded', String(!on));
+  if (!on) {
+    clearUnread();
+    // A closed panel is display:none, so it has no layout and the follow-the-tail scroll
+    // in show() lands on nothing. What arrived behind the badge is exactly what you
+    // opened the panel to read, so put the view on it.
+    chatLog.scrollTop = chatLog.scrollHeight;
+  }
   store('atrium.chat.collapsed', on);
 }
 
@@ -462,6 +468,12 @@ function focusChat() {
 
 chatToggle.addEventListener('click', () => {
   setCollapsed(!chatPanel.classList.contains('collapsed'));
+  document.getElementById('chat-open').focus();
+});
+
+document.getElementById('chat-open').addEventListener('click', () => {
+  if (chatPanel.classList.contains('collapsed')) focusChat();
+  else setCollapsed(true);
 });
 
 setCollapsed(stored('atrium.chat.collapsed', false));

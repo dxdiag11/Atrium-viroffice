@@ -400,9 +400,23 @@ dikerjakan diam-diam di tengah ticket.
   `/vote` membuat kartu, klik memindahkan suara, chip reaksi dan highlight "milik saya"
   benar per penonton, `/help` dan perintah tak dikenal hanya sampai ke pengirim, pesan
   mention tidak punya tombol reaksi.
-- Tinggi `#chat` naik dari `40vh` ke `clamp(380px, 46vh, 520px)` setelah dilihat di
-  browser: di layar laptop 694px, 40vh memotong kartu poll jadi setengah. Kalau nanti
-  ada elemen chat yang lebih tinggi lagi, naikkan lantainya, jangan `vh`-nya — `vh` kecil
-  di layar pendek justru saat ruangnya paling dibutuhkan.
+- Tinggi `#chat` sempat dinaikkan ke `clamp(380px, 46vh, 520px)` karena `40vh` memotong
+  kartu poll di layar laptop. Saat merge dengan `main`, ukuran itu digantikan desain dock
+  dari `main` (`min(360px, 100dvh - 140px)`, panel 380px lebar) — kartu poll tetap muat
+  karena panelnya jadi lebih lebar. Kalau nanti ada elemen chat yang lebih tinggi lagi,
+  naikkan lantainya, jangan `vh`-nya: `vh` mengecil di layar pendek justru saat ruangnya
+  paling dibutuhkan.
+- `#chat button` dari desain `main` adalah aturan level-id, jadi ia mengalahkan aturan
+  level-kelas. Gaya dasar chip dan pilihan poll memang sengaja dibiarkan ikut `main`,
+  tapi aturan *state* (`.chip.mine`, `.opt.mine`, `.opt.win`, `:disabled`) diberi awalan
+  `#chat` supaya tidak ikut tertimpa. Kalau menambah state baru, ikuti pola itu.
+- Membuka panel sekarang selalu melompat ke pesan terbaru. Panel tertutup itu
+  `display: none`, jadi tidak punya layout dan auto-scroll di `show()` mendarat di
+  angka nol — tanpa ini, badge menghitung pesan yang justru tidak terlihat saat dibuka.
 - Tombol reaksi sempat `opacity: 0` sampai baris di-hover. Terbukti tidak ketemu orang.
   Sekarang `0.45` dan penuh saat hover.
+- Commit reaction/poll sempat menyisipkan blok CSS-nya di tengah selektor
+  `#chat.collapsed`, memotong aturan itu dan meninggalkan `#chat-compose { display: none }`
+  menggantung sebagai aturan global. Diperbaiki saat merge. Penyebabnya penyisipan
+  otomatis yang berpatokan pada `#chat-compose {` — kemunculan pertamanya ada di dalam
+  selektor lain. Kalau menyisipkan blok CSS lagi, pakai jangkar yang benar-benar unik.

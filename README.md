@@ -9,6 +9,62 @@ npm start          # http://localhost:3100  (office only)
 npm run start:all  # office + all desk games together
 ```
 
+## Deploy with Docker
+
+Runs the office and all three desk games as separate containers, mirroring
+`npm run start:all`:
+
+```bash
+docker compose up --build -d
+```
+
+Then open `http://<server-host>:3100`. `docker compose logs -f` to watch it,
+`docker compose down` to stop, `docker compose up --build -d` again after pulling
+new code. Each service is its own image built from the repo root (`Dockerfile`,
+`games/gaple/Dockerfile`, `games/tumble/Dockerfile`, `games/werewolf/Dockerfile` —
+they need the repo root as build context because the games `require('../serve')`),
+and comes up on the same ports as running things with `npm`: 3100/3200/3300/3400.
+
+### HTTPS on a real server
+
+Browsers only hand out a mic on a secure origin — `localhost` counts, a public IP or
+domain does not — and an https page can't iframe an http one, so a public deployment
+needs https on **all four ports**, for the same hostname (the office reaches a game
+at `location.hostname:<port>`). Two ways to get there, both already wired into
+`docker-compose.yml`:
+
+1. **Give each container the certificate directly.** Put `cert.pem` + `key.pem` in
+   `./certs/` on the host and restart the stack (`docker compose up -d
+   --force-recreate`) — every container mounts that folder read-only and turns on
+   https by itself the moment it finds a cert there, no reverse proxy needed.
+   - Have a domain? Get a real one for it (certbot, your host's panel, etc.) and
+     drop it in — no more browser warning.
+   - Only have a public IP (no domain yet)? Run `./scripts/make-server-cert.sh`
+     (auto-detects the IP, or pass it as an argument) — it makes the same kind of
+     self-signed cert `make-cert.sh` makes for a LAN IP, just for your server's
+     public one.
+2. **Terminate TLS in front instead** (Caddy, nginx, Traefik, a cloud load balancer…)
+   and forward plain http to the containers' published ports. If you go this route,
+   leave `./certs/` empty so the containers themselves stay on http behind the proxy.
+
+Either way, open a firewall for 3100-3400 (or whatever you remap them to) and point
+DNS at the box if you have one. With a self-signed cert (option 1's second bullet),
+each of the four ports also needs opening once in a plain tab and clicking through
+the browser's warning (Advanced → Proceed) before the office overlay can load it — a
+real certificate doesn't have that problem.
+
+> **"Mic access failed: Cannot read properties of undefined (reading
+> 'getUserMedia')"** means the browser decided the page isn't https (or isn't
+> `localhost`) and didn't give it a `mediaDevices` API at all — this is the fix.
+
+### What Docker doesn't change
+
+Voice is still a WebRTC mesh with no TURN server (see "Limits" below) — fine on a LAN,
+but players behind strict/symmetric NATs on the open internet may fail to connect to
+each other even once the server itself is reachable. Chat history and the desk games'
+tables are in-memory and reset on container restart; nothing here is persisted to a
+volume.
+
 ## Desk games
 
 Sit on a chair that faces a monitor (reception desk, phone booths, the open-plan

@@ -123,8 +123,18 @@ document.getElementById('join').addEventListener('click', async (e) => {
 document.getElementById('mute').addEventListener('click', (e) => {
   const on = e.currentTarget.classList.toggle('on');
   setMuted(on);
-  e.currentTarget.textContent = on ? 'Unmute mic' : 'Mute mic';
+  e.currentTarget.setAttribute('aria-pressed', String(on));
+  e.currentTarget.setAttribute('aria-label', on ? 'Unmute microphone' : 'Mute microphone');
+  document.getElementById('mic-label').textContent = on ? 'Mic off' : 'Mic on';
 });
+
+function toggleRange() {
+  showRange = !showRange;
+  const button = document.getElementById('range-toggle');
+  button.setAttribute('aria-pressed', String(showRange));
+  button.setAttribute('aria-label', showRange ? 'Hide audio range' : 'Show audio range');
+}
+document.getElementById('range-toggle').addEventListener('click', toggleRange);
 
 // --- socket ----------------------------------------------------------------
 
@@ -213,18 +223,22 @@ socket.on('radio', ({ id, on }) => {
 socket.on('radio-busy', () => {
   const el = document.getElementById('radio');
   el.textContent = 'channel busy';
-  el.className = 'busy';
+  document.getElementById('walkie-button').classList.add('busy');
   setTimeout(renderRadio, 1000);
 });
 
 function renderRadio() {
   const el = document.getElementById('radio');
   const hud = document.getElementById('hud');
-  const mine = radioHolder === myId;
+  const mine = !!myId && radioHolder === myId;
   const who = players[radioHolder];
 
   el.textContent = !radioHolder ? 'hold T to talk' : mine ? 'ON AIR' : 'on air - ' + (who ? who.name : '?');
-  el.className = radioHolder ? 'live' : '';
+  const button = document.getElementById('walkie-button');
+  button.classList.toggle('live', !!radioHolder);
+  button.classList.remove('busy');
+  button.setAttribute('aria-pressed', String(mine));
+  button.title = radioHolder ? el.textContent : 'Hold to talk (T)';
   hud.classList.toggle('on-air', mine);
 }
 socket.on('chat', (msg) => addMessage(msg));
@@ -242,6 +256,7 @@ socket.on('disconnect', () => {
   setComposing(false);
   document.getElementById('gate').hidden=false;
   document.getElementById('hud').hidden=true;
+  document.getElementById('chat').hidden=true;
   document.getElementById('join').disabled=false;
   showError('Connection lost. Re-enter the office when your connection returns.');
 });
@@ -253,8 +268,39 @@ function addPlayer(p) {
 
 // --- input -----------------------------------------------------------------
 
+const walkieButton = document.getElementById('walkie-button');
+function pressWalkie() {
+  if (!myId || held.has('t')) return;
+  held.add('t');
+  socket.emit('ptt-down');
+}
+function releaseWalkie() {
+  if (!held.has('t')) return;
+  held.delete('t');
+  socket.emit('ptt-up');
+}
+walkieButton.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0 || !e.isPrimary) return;
+  walkieButton.setPointerCapture(e.pointerId);
+  pressWalkie();
+});
+for (const event of ['pointerup', 'pointercancel', 'lostpointercapture', 'blur']) {
+  walkieButton.addEventListener(event, releaseWalkie);
+}
+walkieButton.addEventListener('keydown', (e) => {
+  if (!['Enter', ' '].includes(e.key)) return;
+  e.preventDefault();
+  pressWalkie();
+});
+walkieButton.addEventListener('keyup', (e) => {
+  if (!['Enter', ' '].includes(e.key)) return;
+  e.preventDefault();
+  releaseWalkie();
+});
+
 window.addEventListener('keydown', (e) => {
   if (!myId || ['INPUT','TEXTAREA'].includes(e.target.tagName)) return;
+  if (e.target.closest('button') && ['Enter', ' '].includes(e.key)) return;
   const key = e.key.toLowerCase();
   if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(key)) e.preventDefault();
   if (e.key === 'Enter') {
@@ -264,7 +310,10 @@ window.addEventListener('keydown', (e) => {
     held.clear();
     return focusChat();
   }
-  if (e.key === '`') showRange = !showRange;
+  if (e.key === '`' && !e.repeat) toggleRange();
+  if (key === 'v' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.isContentEditable) {
+    document.getElementById('mute').click();
+  }
   if (key === 'e' && !e.repeat && players[myId]) toggleSit(players[myId]);
   // keydown repeats while a key is held, so ask the channel only on the first one.
   if (key === 't' && !held.has('t') && myId) socket.emit('ptt-down');
@@ -518,19 +567,32 @@ function draw(me) {
   if (background) ctx.drawImage(background, 0, 0, map.width, map.height);
 
   if (showRange) {
-    for (const [radius, color] of [[NEAR, '#4fd08a'], [FAR, '#4f7fd0']]) {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.setLineDash([6, 6]);
-      ctx.beginPath();
-      ctx.arc(me.x, me.y, radius, 0, Math.PI * 2);
-      ctx.stroke();
+    // Keep the nearby floor bright and shade the rest using the existing audio
+    // falloff. Sample the curve so the transition follows its squared rolloff.
+    const shade = ctx.createRadialGradient(me.x, me.y, NEAR, me.x, me.y, FAR);
+    for (let i = 0; i <= 24; i++) {
+      const t = i / 24;
+      const distance = NEAR + (FAR - NEAR) * t;
+      shade.addColorStop(t, 'rgba(10, 15, 22, ' + (0.88 * (1 - falloff(distance))) + ')');
     }
-    ctx.setLineDash([]);
+    ctx.fillStyle = shade;
+    ctx.fillRect(camX, camY, viewWidth, viewHeight);
   }
 
+  // Avatars fade with the audio falloff while the range overlay is up; bubbles are drawn
+  // afterwards at full strength, so a distant message stays readable even when the person
+  // saying it is dimmed out.
   const roster = Object.values(players).sort((a,b)=>a.ry-b.ry);
-  for (const p of roster) drawPlayer(p, p.id === myId);
+  for (const p of roster) {
+    ctx.save();
+    if (showRange && p.id !== myId) {
+      const distance = Math.hypot(p.rx - me.x, p.ry - me.y);
+      // Radio remains audible outside proximity range, so keep its speaker visible.
+      ctx.globalAlpha = Math.max(falloff(distance), radioGain(distance, p.id === radioHolder));
+    }
+    if (ctx.globalAlpha > 0) drawPlayer(p, p.id === myId);
+    ctx.restore();
+  }
   drawBubbles(ctx, roster, performance.now());
 
   const near = nearestSeat(me);
