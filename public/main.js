@@ -60,10 +60,10 @@ async function selectCharacter(id) {
   for (const option of document.querySelectorAll('.character-option')) option.setAttribute('aria-pressed',String(option.dataset.character===id));
   try {
     if (!mapPromise) mapPromise=loadMap().catch(err=>{mapPromise=null;throw err;});
-    await Promise.all([mapPromise,loadCharacter(id)]);
+    const [,,portrait]=await Promise.all([mapPromise,loadCharacter(id),loadPortrait(id)]);
     if (id!==selectedCharacter) return;
     const preview=document.getElementById('character-preview');
-    preview.style.backgroundImage='url("/assets/characters/'+id+'/move.png")';
+    preview.style.backgroundImage='url("'+portrait+'")';
     preview.setAttribute('aria-label',characterById(id).name+' preview');
     assetsReady=true;
     button.disabled=joining;
@@ -85,7 +85,10 @@ for (const character of CHARACTERS) {
   option.setAttribute('aria-label',character.name+' ('+character.id+')');
   const thumb=document.createElement('span');
   thumb.className='character-thumb';
-  thumb.style.backgroundImage='url("/assets/characters/'+character.id+'/move.png")';
+  loadPortrait(character.id).then(portrait=>{
+    thumb.style.backgroundImage='url("'+portrait+'")';
+    thumb.dataset.loaded='true';
+  }).catch(()=>{option.disabled=true;option.title='Character image could not load. Refresh to retry.';});
   thumb.setAttribute('aria-hidden','true');
   const label=document.createElement('span');
   label.className='character-name';
