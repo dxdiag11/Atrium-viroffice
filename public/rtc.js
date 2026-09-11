@@ -5,6 +5,8 @@ const PC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 let audioCtx = null;
 let localStream = null;
 let selfId = null;
+let localAnalyser = null;
+const levelBuffer = new Float32Array(512);
 let radioCurve = null;   // saturation curve, shared by every peer's radio branch
 let noiseBuffer = null;  // one second of noise, sliced for squelch bursts
 let voiceMeter = null;
@@ -27,6 +29,12 @@ async function startVoice() {
   voiceMeter.fftSize=512;
   voiceSamples=new Uint8Array(voiceMeter.fftSize);
   audioCtx.createMediaStreamSource(localStream).connect(voiceMeter);
+
+  // Tapped off the raw mic, not off a gain node, so the meter shows what the talker is
+  // actually saying regardless of which branch happens to be audible to us.
+  localAnalyser = audioCtx.createAnalyser();
+  localAnalyser.fftSize = 512;
+  audioCtx.createMediaStreamSource(localStream).connect(localAnalyser);
 
   radioCurve = saturationCurve(12);
   noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.3, audioCtx.sampleRate);
@@ -81,6 +89,12 @@ function playSquelch(open) {
   src.stop(now + dur + 0.02);
 }
 
+// Chat's notification tone shares this context: it only exists after the Join gesture,
+// which is exactly when chat starts too.
+function getAudioCtx() {
+  return audioCtx;
+}
+
 function setSelfId(id) {
   selfId = id;
 }
@@ -103,6 +117,7 @@ function connectPeer(id) {
     gain: null,
     panner: null,
     radio: null,
+    analyser: null,
     element: null,
   };
   peers[id] = peer;
@@ -150,6 +165,11 @@ function attachAudio(peer, stream) {
   peer.element = el;
 
   const source = audioCtx.createMediaStreamSource(stream);
+
+  peer.analyser = audioCtx.createAnalyser();
+  peer.analyser.fftSize = 512;
+  source.connect(peer.analyser); // a sink, nothing downstream: drives the level meter
+
   peer.gain = audioCtx.createGain();
   peer.gain.gain.value = 0; // start silent, the distance loop fades it in
   peer.panner = audioCtx.createStereoPanner();
@@ -181,10 +201,22 @@ function closePeer(id) {
   if (peer.gain) peer.gain.disconnect();
   if (peer.panner) peer.panner.disconnect();
   if (peer.radio) peer.radio.disconnect();
+  if (peer.analyser) peer.analyser.disconnect();
   if (peer.element) {
     peer.element.srcObject = null;
     peer.element = null;
   }
+}
+
+// How loud whoever holds the walkie channel is right now, 0..1.
+function micLevel(id) {
+  const analyser = id === selfId ? localAnalyser : peers[id] && peers[id].analyser;
+  if (!analyser) return 0;
+
+  analyser.getFloatTimeDomainData(levelBuffer);
+  let sum = 0;
+  for (let i = 0; i < levelBuffer.length; i++) sum += levelBuffer[i] * levelBuffer[i];
+  return Math.min(1, Math.sqrt(sum / levelBuffer.length) * 3.5);
 }
 
 // Called every frame from the render loop.

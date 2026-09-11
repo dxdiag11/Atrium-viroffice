@@ -49,6 +49,141 @@ button {
 button:hover { background: #2c3243; }
 button.on { background: #7a2b2b; border-color: #a03c3c; }
 
+#chat {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  width: min(320px, calc(100vw - 32px));
+  height: 40vh;
+  border-radius: 10px;
+  background: rgba(27, 30, 39, 0.94);
+  border: 1px solid #2c3040;
+  overflow: hidden;
+}
+
+#chat.collapsed { height: auto; }
+#chat.collapsed #chat-log,
+#chat.collapsed #chat-compose { display: none; }
+
+#chat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 8px 8px 12px;
+  border-bottom: 1px solid #2c3040;
+  color: #9096a8;
+}
+
+#chat-head .spacer { flex: 1; }
+
+#chat-badge {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #3a4055;
+  color: #e8eaf0;
+  font-size: 11px;
+  text-align: center;
+}
+
+#chat-badge.mention { background: #d8a13a; color: #1b1e27; }
+
+#chat-bell {
+  padding: 2px 8px;
+  line-height: 1.2;
+}
+
+#chat-bell.off { opacity: 0.5; }
+
+#chat-toggle {
+  padding: 2px 10px;
+  line-height: 1.2;
+}
+
+#chat-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+
+.msg { margin-bottom: 6px; word-wrap: break-word; overflow-wrap: anywhere; }
+.msg .who { font-weight: 600; }
+.msg .time { margin: 0 6px; font-size: 11px; color: #6f7488; }
+.msg.system { font-style: italic; color: #8b90a0; }
+
+.msg.private {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border-left: 3px solid #7a6fd0;
+  background: rgba(122, 111, 208, 0.12);
+}
+
+.msg.private.to-me {
+  border-left-color: #d8a13a;
+  background: rgba(216, 161, 58, 0.16);
+}
+
+.msg .only {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #9a92d8;
+}
+
+.msg.private.to-me .only { color: #d8a13a; }
+
+.mention {
+  padding: 0 2px;
+  border-radius: 4px;
+  color: #cfc7ff;
+  background: rgba(122, 111, 208, 0.25);
+  font-weight: 600;
+}
+
+#chat-compose {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid #2c3040;
+}
+
+#chat-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #3a4055;
+  border-radius: 8px;
+  background: #12141b;
+  color: #e8eaf0;
+  font: inherit;
+}
+
+#chat-send { padding: 8px 12px; }
+
+#chat-suggest {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: calc(100% - 4px);
+  max-height: 140px;
+  overflow-y: auto;
+  border: 1px solid #3a4055;
+  border-radius: 8px;
+  background: #12141b;
+}
+
+#chat-suggest div {
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+#chat-suggest div.active,
+#chat-suggest div:hover { background: #2c3243; }
+
 #gate {
   position: fixed;
   inset: 0;
@@ -121,3 +256,147 @@ button:disabled { opacity:.55; cursor:wait; }
 .error { margin: 12px 0 0 !important; color: #e07a6a !important; font-size: 13px; }
 
 [hidden] { display: none !important; }
+
+/* --- walkie-talkie handset ------------------------------------------------ */
+
+#walkie {
+  position: fixed;
+  right: 24px;
+  top: 50%;
+  transform: translate(160%, -50%);
+  transition: transform 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+  pointer-events: none;
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.55));
+}
+
+#walkie.show { transform: translate(0, -50%); }
+
+/* the antenna waves animate outside the viewBox */
+#walkie svg { overflow: visible; }
+
+/* Listening: steady green light, quiet trim. */
+#walkie .led { fill: #4fd08a; animation: ledPulse 1.6s ease-in-out infinite; }
+#walkie .waves { opacity: 0; }
+#walkie .bars rect { fill: #6dffae; }
+
+/* Transmitting: red light hammering away, antenna radiating, button pushed in. */
+#walkie.tx .shell { stroke: #a03c3c; }
+#walkie.tx .led { fill: #ff4d3d; animation: ledBlink 0.5s steps(1, end) infinite; }
+#walkie.tx .ptt { fill: #14181f; transform: translateX(2px); }
+#walkie.tx .ch, #walkie.tx .mode { fill: #ff8a6a; }
+#walkie.tx .who { fill: #c25a48; }
+#walkie.tx .bars rect { fill: #ff8a6a; }
+#walkie.tx .waves { opacity: 1; }
+
+#walkie.tx .waves path {
+  transform-box: fill-box;
+  transform-origin: left center;
+  animation: waveOut 1.1s ease-out infinite;
+}
+#walkie.tx .waves .w2 { animation-delay: 0.18s; }
+#walkie.tx .waves .w3 { animation-delay: 0.36s; }
+
+@keyframes ledBlink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.12; }
+}
+
+@keyframes ledPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+@keyframes waveOut {
+  0% { opacity: 0; transform: scale(0.5); }
+  25% { opacity: 0.9; }
+  100% { opacity: 0; transform: scale(1.35); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #walkie, #walkie .led, #walkie .waves path { transition: none; animation: none; }
+}
+/* --- Game menu (shown when you sit at a workstation) --- */
+#arcade {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(10, 11, 15, 0.6);
+  z-index: 50;
+}
+
+.arcade-card {
+  width: 360px;
+  padding: 26px;
+  border-radius: 16px;
+  background: #1b1e27;
+  border: 1px solid #2c3040;
+  text-align: center;
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
+}
+
+.arcade-card h2 { margin: 0 0 6px; font-size: 20px; }
+.arcade-card > p { margin: 0 0 18px; color: #9096a8; }
+
+.arcade-choices {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.arcade-choices button {
+  padding: 14px;
+  font-size: 15px;
+  border-radius: 10px;
+  background: #232838;
+  border: 1px solid #3a4055;
+}
+.arcade-choices button:hover { background: #2f6f4f; border-color: #3d8b64; }
+.arcade-choices .emoji { font-size: 18px; margin-right: 6px; }
+
+.arcade-x { width: 100%; background: transparent; border-color: #2c3040; color: #8b90a0; }
+
+/* --- Full-screen game overlay --- */
+#gameframe {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: #14161c;
+}
+
+.gameframe-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  background: #1b1e27;
+  border-bottom: 1px solid #2c3040;
+}
+
+#gameframe-title { font-weight: 600; }
+#gameframe-exit { background: #7a2b2b; border-color: #a03c3c; }
+#gameframe-exit:hover { background: #8f3333; }
+
+#gameframe-iframe {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #14161c;
+}
+
+#gameframe-hint {
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  transform: translateX(-50%);
+  max-width: 520px;
+  text-align: center;
+  line-height: 1.7;
+  color: #c9a15a;
+  font-size: 13px;
+}
+#gameframe-hint a { color: #7fc4ff; }
+#gameframe-hint code { color: #e8eaf0; }

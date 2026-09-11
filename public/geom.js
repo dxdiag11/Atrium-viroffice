@@ -54,4 +54,51 @@ function canTraverse(from, to, r, rects) {
   return true;
 }
 
-Object.assign(globalThis, { NEAR, FAR, RADIUS, RADIO_LEVEL, falloff, radioGain, canMove, canTraverse, pointInPolygon });
+// Ease a raw mic reading toward the value drawn on screen. Fast attack, slow release:
+// speech starts abruptly and trails off, and a ring that tracks the raw signal both ways
+// just strobes.
+function smoothLevel(prev, raw) {
+  return prev + (raw - prev) * (raw > prev ? 0.5 : 0.12);
+}
+
+// Push `me` clear of everyone they overlap, and return the corrected position.
+//
+// Only the mover is moved: the other player is remote and cannot be shoved from here.
+// Both clients run this against each other every frame, so a head-on collision
+// separates from both sides and converges instead of one player winning.
+function separateFrom(x, y, others) {
+  const min = RADIUS * 2;
+
+  // A push can overlap someone already visited, especially with the cave's smaller
+  // avatars. Revisit the group, with a fixed bound so a crowd cannot stall a frame.
+  for (let pass = 0; pass < others.length; pass++) {
+    const startX = x, startY = y;
+    let moved = false;
+    for (const p of others) {
+      const dx = x - p.x;
+      const dy = y - p.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist >= min) continue;
+      moved = true;
+
+      // Exactly stacked gives no direction to push along, so pick one.
+      if (dist < 0.001) {
+        x += min;
+        continue;
+      }
+      const push = (min - dist) / dist;
+      x += dx * push;
+      y += dy * push;
+    }
+    if (!moved) break;
+    // Opposite pushes can cancel in a narrow gap. Step sideways to escape the
+    // cycle; the caller still checks the corrected position against map walls.
+    if (Math.hypot(x - startX, y - startY) < 0.001) y += min;
+  }
+  return [x, y];
+}
+
+Object.assign(globalThis, {
+  NEAR, FAR, RADIUS, RADIO_LEVEL, falloff, radioGain, canMove, canTraverse, pointInPolygon,
+  separateFrom, smoothLevel,
+});

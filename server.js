@@ -8,6 +8,7 @@ const { Server } = require('socket.io');
 require('./public/geom.js');
 require('./public/characters.js');
 require('./public/office.js');
+require('./public/chat-core.js');
 const map = buildOffice(); // walls, spawn and seats all come from the one office model
 
 const app = express();
@@ -41,11 +42,52 @@ function releaseRadio(io) {
   radio = null;
   if (id) io.emit('radio', { id, on: false });
 }
+// Chat lives in memory only: a restart wipes it, on purpose. Mention messages are never
+// pushed here, otherwise a late joiner would read other people's private messages.
+// Chat lives in memory only: a restart wipes it, and so does the room emptying out.
+// Mention messages are never pushed here, otherwise a late joiner would read other
+// people's private messages.
+const messages = [];
+const buckets = {}; // socket id -> rate limiter
+let msgSeq = 0;
+
+function makeMessage(fields) {
+  return {
+    id: 'm' + ++msgSeq,
+    at: Date.now(),
+    scope: 'all',
+    from: null,
+    name: null,
+    color: null,
+    text: '',
+    mentions: [],
+    ...fields,
+  };
+}
+
+function remember(msg) {
+  messages.push(msg);
+  if (messages.length > HISTORY_MAX) messages.shift();
+}
+
+// Join and leave notices are global chat, so they belong in history like any other.
+function announce(text) {
+  const msg = makeMessage({ scope: 'system', text });
+  remember(msg);
+  io.emit('chat', msg);
+}
+
+// A warning only the sender sees: never throw and never disconnect over chat input.
+function warn(socket, text) {
+  socket.emit('chat', makeMessage({ scope: 'system', text }));
+}
 
 io.on('connection', (socket) => {
   socket.on('join', (payload) => {
     if (players[socket.id]) return;
-    const name = String((payload && payload.name) || 'anon').slice(0, 16);
+    const raw = String((payload && payload.name) || 'anon').slice(0, 16);
+    const name = uniqueName(raw, Object.values(players).map((p) => p.name));
+    buckets[socket.id] = makeBucket(CHAT_LIMIT[0], CHAT_LIMIT[1]);
     const character = characterById(payload && payload.characterId);
     const spawn = {...map.spawn};
     for (let attempt=0; attempt<20; attempt++) {
@@ -64,7 +106,42 @@ io.on('connection', (socket) => {
       seat: null,
     };
     socket.emit('players', players, socket.id, radio);
+    socket.emit('chat-history', messages);
     socket.broadcast.emit('player-joined', players[socket.id]);
+    announce(name + ' masuk');
+  });
+
+  socket.on('chat', (payload) => {
+    const me = players[socket.id];
+    if (!me) return; // not joined yet: no name, no colour, nothing to attribute
+    const text = normalizeText(payload && payload.text);
+    if (!text) return;
+    if (!buckets[socket.id].take(Date.now())) {
+      return warn(socket, 'Terlalu cepat. Tunggu sebentar.');
+    }
+
+    const { scope, ids, unknown } = resolveRecipients(text, socket.id, players);
+    if (unknown.length) {
+      // Sending it anyway would leak a message meant to be private, so drop it entirely.
+      return warn(socket, 'Tidak ada user bernama @' + unknown.join(', @'));
+    }
+
+    const msg = makeMessage({
+      scope,
+      from: socket.id,
+      name: me.name,
+      color: me.color,
+      text,
+      mentions: ids || [],
+    });
+
+    if (scope === 'all') {
+      remember(msg);
+      return io.emit('chat', msg);
+    }
+    // Routed server-side, never broadcast-then-filtered: anyone could read a filtered
+    // message straight out of devtools. Deliberately not remembered, either.
+    for (const id of ids) io.to(id).emit('chat', msg);
   });
 
   socket.on('move', (pos) => {
@@ -142,9 +219,17 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     if (radio === socket.id) releaseRadio(io);
+    delete buckets[socket.id];
     if (!players[socket.id]) return;
+    const { name } = players[socket.id];
     delete players[socket.id];
     io.emit('player-left', socket.id);
+    announce(name + ' keluar');
+
+    // Nobody left in the office: the conversation is over, so the next person to walk
+    // in starts on a blank log instead of reading a stranger's backlog. Ids keep
+    // counting up, since they are only promised to be unique per server run.
+    if (!Object.keys(players).length) messages.length = 0;
   });
 });
 

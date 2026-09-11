@@ -9,6 +9,7 @@ const canvas = document.getElementById('stage');
 const ctx = canvas.getContext('2d');
 
 const players = {};     // id -> { id, name, color, x, y, rx, ry }
+const speaking = new Map(); // id -> smoothed mic level, 0..1, for the speaking ring
 const held = new Set();
 
 let myId = null;
@@ -141,11 +142,20 @@ socket.on('players', (all, id, holder) => {
   document.getElementById('gate').hidden = true;
   document.getElementById('hud').hidden = false;
   renderRadio();
+
+  // Someone may already be mid-transmission when we walk in: the 'radio' event that
+  // raises the handset fired before we were here to hear it.
+  if (radioHolder) {
+    const talker = players[radioHolder];
+    showWalkie(talker ? talker.name : '', radioHolder === myId);
+  }
+  document.getElementById('chat').hidden = false;
 });
 
 socket.on('player-joined', (p) => {
   addPlayer(p);
   connectPeer(p.id);
+  refreshSuggest(); // an open @-list must show whoever just walked in
 });
 
 socket.on('player-seat', ({ id, seat, x, y }) => {
@@ -159,6 +169,7 @@ socket.on('player-seat', ({ id, seat, x, y }) => {
     p.ry = y;
     sentX = x; // the server already knows this position, don't echo it back
     sentY = y;
+    maybeArcade(p);
   }
 });
 
@@ -180,13 +191,22 @@ socket.on('position-corrected',({x,y})=>{
 
 socket.on('player-left', (id) => {
   delete players[id];
+  speaking.delete(id);
   closePeer(id);
+  refreshSuggest();
 });
 
 socket.on('radio', ({ id, on }) => {
   radioHolder = on ? id : null;
   playSquelch(on);
   renderRadio();
+
+  if (on) {
+    const who = players[id];
+    showWalkie(who ? who.name : '', id === myId);
+  } else {
+    hideWalkie();
+  }
 });
 
 socket.on('radio-busy', () => {
@@ -206,6 +226,8 @@ function renderRadio() {
   el.className = radioHolder ? 'live' : '';
   hud.classList.toggle('on-air', mine);
 }
+socket.on('chat', (msg) => addMessage(msg));
+socket.on('chat-history', addHistory);
 
 socket.on('signal', ({ from, data }) => handleSignal(from, data));
 
@@ -230,6 +252,13 @@ window.addEventListener('keydown', (e) => {
   if (!myId || ['INPUT','TEXTAREA'].includes(e.target.tagName)) return;
   const key = e.key.toLowerCase();
   if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(key)) e.preventDefault();
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    // Movement keys are only released by a keyup, and the input swallows nothing, but
+    // clearing here means a key held while jumping into chat can never stay stuck.
+    held.clear();
+    return focusChat();
+  }
   if (e.key === '`') showRange = !showRange;
   if (key === 'e' && !e.repeat && players[myId]) toggleSit(players[myId]);
   // keydown repeats while a key is held, so ask the channel only on the first one.
@@ -299,7 +328,92 @@ function stand(me, step = true) {
     }
   }
   socket.emit('stand', { x: me.x, y: me.y });
+  maybeArcade(me); // seat is null now -> closes the game menu
 }
+
+// --- desk games ----------------------------------------------------------------
+// Sit at a monitor -> pick a game -> it runs in an overlay, right inside the office.
+
+const GAMES = {
+  gaple:    { name: '🀄 Gaple',       port: 3200 },
+  tumble:   { name: '🏃 Tumble Rush', port: 3300 },
+  werewolf: { name: '🐺 Werewolf',    port: 3400 },
+};
+
+function gameOrigin(port) {
+  return location.protocol + '//' + location.hostname + ':' + port;
+}
+
+function gameUrl(port) {
+  const me = players[myId] || {};
+  const q = '?name=' + encodeURIComponent(me.name || '') + '&color=' + encodeURIComponent(me.color || '');
+  return gameOrigin(port) + '/' + q;
+}
+
+// The self-signed certificate has to be accepted once per port, and a browser will not
+// show that prompt inside an iframe -- the overlay would just come up blank. So knock on
+// the game first: a rejected fetch means the certificate has not been trusted yet.
+async function gameReachable(port) {
+  try {
+    await fetch(gameOrigin(port) + '/', { mode: 'no-cors', cache: 'no-store' });
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+function maybeArcade(me) {
+  const seat = me && me.seat !== null ? map.seats[me.seat] : null;
+  const playing = !document.getElementById('gameframe').hidden;
+  document.getElementById('arcade').hidden = !(seat && seat.game && !playing);
+}
+
+async function openGame(key) {
+  const g = GAMES[key];
+  if (!g) return;
+  const iframe = document.getElementById('gameframe-iframe');
+  const hint = document.getElementById('gameframe-hint');
+
+  hint.hidden = true;
+  document.getElementById('gameframe-title').textContent = g.name;
+  document.getElementById('arcade').hidden = true;
+  document.getElementById('gameframe').hidden = false;
+
+  if (await gameReachable(g.port)) {
+    iframe.src = gameUrl(g.port);
+  } else {
+    const origin = gameOrigin(g.port);
+    hint.innerHTML =
+      'Belum bisa dibuka. Buka <a href="' + origin + '" target="_blank" rel="noopener">' + origin +
+      '</a> sekali di tab baru, terima peringatan sertifikatnya, lalu balik ke sini dan pilih lagi.' +
+      '<br>Kalau tetap gagal, server game-nya belum jalan: <code>npm run start:all</code>.';
+    hint.hidden = false;
+  }
+  // Release the walkie BEFORE clearing the key set, or the check can never be true and
+  // opening a game mid-transmission strands the channel until the server times it out.
+  if (held.has('t')) socket.emit('ptt-up');
+  held.clear(); // so you are not still "walking" when you come back
+}
+
+function closeGame() {
+  document.getElementById('gameframe-iframe').src = 'about:blank';
+  document.getElementById('gameframe').hidden = true;
+  held.clear();
+  maybeArcade(players[myId]); // still seated -> show the menu again
+}
+
+for (const btn of document.querySelectorAll('#arcade [data-game]')) {
+  btn.addEventListener('click', () => openGame(btn.dataset.game));
+}
+document.getElementById('arcade-close').addEventListener('click', () => {
+  document.getElementById('arcade').hidden = true;
+});
+document.getElementById('gameframe-exit').addEventListener('click', closeGame);
+
+// A game running in the overlay can ask to be closed (its own "back to office" button).
+window.addEventListener('message', (e) => {
+  if (e.data === 'atrium:exit-game' && !document.getElementById('gameframe').hidden) closeGame();
+});
 
 function move(me, dt) {
   me.walking=false;
@@ -328,6 +442,23 @@ function move(me, dt) {
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+// Runs every frame, not just when you press a key: someone can walk into you while you
+// are standing still, and you should be the one who gives way.
+function separate(me) {
+  if (me.seat !== null) return; // someone sitting is furniture, they do not get shoved
+
+  const others = Object.values(players).filter((p) => p.id !== me.id);
+  const [px, py] = separateFrom(me.x, me.y, others);
+  if (px === me.x && py === me.y) return;
+
+  // Axis by axis, and never into a wall: being pushed should slide you along the wall,
+  // not through it.
+  const nx = clamp(px, RADIUS, map.width - RADIUS);
+  const ny = clamp(py, RADIUS, map.height - RADIUS);
+  if (canMove(nx, me.y, RADIUS, map.collisions)) me.x = nx;
+  if (canMove(me.x, ny, RADIUS, map.collisions)) me.y = ny;
+}
+
 // --- loop ------------------------------------------------------------------
 
 let last = performance.now();
@@ -339,6 +470,7 @@ function frame(now) {
   const me = players[myId];
   if (me) {
     move(me, dt);
+    separate(me);
     me.rx = me.x;
     me.ry = me.y;
 
@@ -358,6 +490,8 @@ function frame(now) {
     }
 
   }
+
+  updateWalkieMeter(radioHolder ? micLevel(radioHolder) : 0);
 
   draw(me);
   requestAnimationFrame(frame);
@@ -406,9 +540,23 @@ function draw(me) {
 }
 
 function drawPlayer(p, isSelf) {
+  // Speaking ring. Drawn for everyone, including people too far away to hear -- seeing
+  // someone talking across the floor is the cue to walk over.
+  const level = smoothLevel(speaking.get(p.id) || 0, micLevel(p.id));
+  speaking.set(p.id, level);
+
+  if (level > 0.06) {
+    ctx.beginPath();
+    ctx.arc(p.rx, p.ry, RADIUS + 5 + level * 8, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(126, 224, 160, ' + Math.min(0.9, 0.3 + level).toFixed(2) + ')';
+    ctx.lineWidth = 2 + level * 3;
+    ctx.stroke();
+  }
+
   if (p.id === radioHolder) {
     // Pulsing ring, so a voice on the radio always has a visible source on the map.
-    const pulse = RADIUS + 8 + Math.sin(performance.now() / 160) * 4;
+    // Sits outside the speaking ring so the two never sit on top of each other.
+    const pulse = RADIUS + 18 + Math.sin(performance.now() / 160) * 4;
     ctx.beginPath();
     ctx.arc(p.rx, p.ry, pulse, 0, Math.PI * 2);
     ctx.strokeStyle = '#e0956a';
@@ -417,21 +565,21 @@ function drawPlayer(p, isSelf) {
   }
 
   const seated=p.seat!==null;
-  const speaking=p.speaking || p.id===radioHolder;
+  const isSpeaking=p.speaking || p.id===radioHolder;
   const direction=seated?map.seats[p.seat].dir:p.direction;
   const walking=isSelf?p.walking:performance.now()<p.walkUntil;
-  if (isSelf || speaking) {
+  if (isSelf || isSpeaking) {
     ctx.beginPath(); ctx.ellipse(p.rx,p.ry,15,6,0,0,Math.PI*2);
-    ctx.strokeStyle=speaking?'#b8ecb0':'#efd59a';ctx.lineWidth=2;ctx.stroke();
+    ctx.strokeStyle=isSpeaking?'#b8ecb0':'#efd59a';ctx.lineWidth=2;ctx.stroke();
   }
-  if (!drawCharacter(ctx,p.characterId,p.rx,p.ry,direction,seated,speaking,walking,performance.now())) {
+  if (!drawCharacter(ctx,p.characterId,p.rx,p.ry,direction,seated,isSpeaking,walking,performance.now())) {
     ctx.beginPath();ctx.arc(p.rx,p.ry,8,0,Math.PI*2);ctx.fillStyle=p.color;ctx.fill();
   }
 
   ctx.font = '12px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillStyle = '#e8eaf0';
-  const label=p.name+(speaking?' · speaking':'');
+  const label=p.name+(isSpeaking?' · speaking':'');
   const width=ctx.measureText(label).width+14;
   ctx.fillStyle='rgba(12,24,20,.88)';ctx.fillRect(p.rx-width/2,p.ry-85,width,18);
   ctx.fillStyle=isSelf?'#f4dfb1':'#edf1e6';
@@ -450,5 +598,6 @@ setInterval(() => {
   document.getElementById('peers').textContent = audible + ' nearby';
 }, 100);
 
+initWalkie();
 selectCharacter(selectedCharacter);
 requestAnimationFrame(frame);

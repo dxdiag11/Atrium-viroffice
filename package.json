@@ -5,6 +5,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
+    "start:all": "node scripts/run-all.js",
     "test": "node --test test.js"
   },
   "dependencies": {
