@@ -667,3 +667,56 @@ html, body {
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* ===== UTIL ===== */
+.hidden { display: none !important; }
+.dim { color: var(--text-dim); }
+.dim.small { font-size: 0.78rem; }
+
+/* ===== PRE-JOIN / LOBBY ===== */
+.gate {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+  background-image: radial-gradient(ellipse 70% 60% at 50% 40%, #143d22 0%, var(--bg) 70%);
+  padding: 20px;
+}
+.gate-card {
+  width: 380px; max-width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  padding: 28px;
+  text-align: center;
+}
+.gate-card > p { color: var(--text-dim); margin-bottom: 16px; font-size: 0.9rem; }
+.gate-card .fld { display: block; text-align: left; margin-bottom: 14px; }
+.gate-card .fld span { display: block; font-size: 0.72rem; color: var(--text-dim); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; }
+.gate-card .fld input {
+  width: 100%; font: inherit; padding: 10px 12px;
+  background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border2); border-radius: 8px;
+}
+.gate-card .fld input:focus { outline: none; border-color: var(--accent); }
+.gate-card #prejoinMsg, .gate-card #lobbyMsg { margin-top: 10px; font-size: 0.82rem; }
+
+.lobby-h { font-weight: 700; text-align: left; margin-bottom: 10px; }
+
+.seat-list { list-style: none; display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.seat-list li {
+  display: flex; align-items: center; gap: 9px;
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 8px 10px; font-size: 0.85rem;
+}
+.seat-list li.me { border-color: var(--accent); }
+.seat-list .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.seat-list .rn { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seat-list .rr { font-size: 0.72rem; color: var(--text-dim); }
+
+.btn-ghost {
+  width: 100%; margin-top: 10px; padding: 10px;
+  background: transparent; color: var(--text-dim);
+  border: 1px solid var(--border2); border-radius: 8px;
+  cursor: pointer; font: inherit; font-weight: 600;
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--border); }

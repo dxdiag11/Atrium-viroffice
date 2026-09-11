@@ -4,13 +4,41 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gaple – Virtual Office Games</title>
-  <meta name="description" content="Game kartu Gaple untuk 4 pemain — 1 pemain asli vs 3 AI. Bagian dari Virtual Office Games.">
+  <meta name="description" content="Game kartu Gaple untuk 4 pemain online — kursi kosong diisi bot. Bagian dari Virtual Office Games.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="app">
+
+<!-- ===== PRE-JOIN ===== -->
+<section id="prejoin" class="gate">
+  <div class="gate-card">
+    <div class="logo" style="margin-bottom:6px">🎴 GAPLE</div>
+    <p>Domino 4 pemain — kursi kosong otomatis diisi bot.</p>
+    <label class="fld"><span>Nama kamu</span>
+      <input id="nameInput" maxlength="16" placeholder="Nama" autocomplete="off">
+    </label>
+    <button id="joinBtn" class="btn-new" style="width:100%;padding:12px">Duduk di meja</button>
+    <p id="prejoinMsg" class="dim"></p>
+  </div>
+</section>
+
+<!-- ===== LOBBY ===== -->
+<section id="lobby" class="gate hidden">
+  <div class="gate-card">
+    <div class="logo" style="margin-bottom:6px">🎴 GAPLE</div>
+    <div class="lobby-h">Meja <span id="waitingNote" class="dim"></span></div>
+    <ul id="seatList" class="seat-list"></ul>
+    <p class="dim small">Kursi yang belum terisi akan diisi bot begitu permainan dimulai.</p>
+    <div id="lobbyMsg" class="dim"></div>
+    <button id="startBtn" class="btn-new hidden" style="width:100%;padding:12px">Mulai permainan</button>
+    <button id="backBtn1" class="btn-ghost">← Kembali ke Virtual Office</button>
+  </div>
+</section>
+
+<!-- ===== GAME ===== -->
+<div id="app" class="hidden">
 
   <!-- ===== HEADER ===== -->
   <header id="header">
@@ -18,33 +46,33 @@
     <div class="scores" id="scores">
       <div class="score-chip" id="chip-0">
         <span class="chip-dot" style="background:#10b981"></span>
-        <span class="chip-name">Anda</span>
+        <span class="chip-name" id="cname-0">—</span>
         <span class="chip-val" id="score-0">0</span>
       </div>
       <div class="score-chip" id="chip-1">
         <span class="chip-dot" style="background:#60a5fa"></span>
-        <span class="chip-name">Pemain 2</span>
+        <span class="chip-name" id="cname-1">—</span>
         <span class="chip-val" id="score-1">0</span>
       </div>
       <div class="score-chip" id="chip-2">
         <span class="chip-dot" style="background:#f472b6"></span>
-        <span class="chip-name">Pemain 3</span>
+        <span class="chip-name" id="cname-2">—</span>
         <span class="chip-val" id="score-2">0</span>
       </div>
       <div class="score-chip" id="chip-3">
         <span class="chip-dot" style="background:#fb923c"></span>
-        <span class="chip-name">Pemain 4</span>
+        <span class="chip-name" id="cname-3">—</span>
         <span class="chip-val" id="score-3">0</span>
       </div>
     </div>
     <div id="turn-indicator" class="turn-wait">Memuat...</div>
-    <button class="btn-new" onclick="onNewRound()" id="btn-new">▶ Ronde Baru</button>
+    <button class="btn-new" id="backBtn2">← Kantor</button>
   </header>
 
   <!-- ===== BOARD ===== -->
   <div class="board" id="board">
 
-    <!-- Player Top (index 2) -->
+    <!-- Player Top (relative seat 2) -->
     <div class="opp-area opp-top" id="p2">
       <div class="opp-info">
         <span class="opp-dot" style="background:#f472b6"></span>
@@ -54,7 +82,7 @@
       <div class="opp-hand opp-hand-top" id="hand-2"></div>
     </div>
 
-    <!-- Player Left (index 3) -->
+    <!-- Player Left (relative seat 3) -->
     <div class="opp-area opp-left" id="p3">
       <div class="opp-hand opp-hand-side" id="hand-3"></div>
       <div class="opp-info opp-info-vert">
@@ -78,7 +106,7 @@
       </div>
     </div>
 
-    <!-- Player Right (index 1) -->
+    <!-- Player Right (relative seat 1) -->
     <div class="opp-area opp-right" id="p1">
       <div class="opp-info opp-info-vert">
         <span class="opp-dot" style="background:#60a5fa"></span>
@@ -93,7 +121,7 @@
   <!-- ===== MY HAND ===== -->
   <div class="my-hand-area" id="my-hand-area">
     <div class="my-hand-header">
-      <span class="hand-label">🖐 KARTU ANDA</span>
+      <span class="hand-label" id="my-hand-label">🖐 KARTU ANDA</span>
       <span class="hand-count" id="my-count">7 kartu</span>
     </div>
     <div id="my-hand"></div>
@@ -116,10 +144,12 @@
     <div id="modal-icon" class="modal-icon"></div>
     <div id="modal-title" class="modal-title"></div>
     <div id="modal-body"></div>
-    <button class="btn-play-again" onclick="onNewRound()">🎴 Main Lagi</button>
+    <button class="btn-play-again" id="againBtn">🎴 Main Lagi</button>
+    <button class="btn-ghost" id="backBtn3">← Kembali ke Virtual Office</button>
   </div>
 </div>
 
+<script src="/socket.io/socket.io.js"></script>
 <script src="game.js"></script>
 </body>
 </html>
