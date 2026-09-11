@@ -57,7 +57,11 @@ button.on { background: #7a2b2b; border-color: #a03c3c; }
   display: flex;
   flex-direction: column;
   width: min(320px, calc(100vw - 32px));
-  height: 40vh;
+  /* A poll card is several rows tall, and 40vh on a laptop screen cut it in half. The
+     floor keeps one whole poll visible; the ceiling stops the panel from swallowing a
+     tall monitor. */
+  height: clamp(380px, 46vh, 520px);
+  max-height: calc(100vh - 32px);
   border-radius: 10px;
   background: rgba(27, 30, 39, 0.94);
   border: 1px solid #2c3040;
@@ -66,7 +70,106 @@ button.on { background: #7a2b2b; border-color: #a03c3c; }
 
 #chat.collapsed { height: auto; }
 #chat.collapsed #chat-log,
-#chat.collapsed #chat-compose { display: none; }
+#chat.collapsed /* Reactions sit under the message, out of the reading line. The "+" only appears on
+   hover so a quiet log stays a log instead of a wall of buttons -- but it stays visible
+   on a touch screen, where there is no hover to reveal it with. */
+.reacts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.reacts button {
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid #3a4055;
+  background: #232838;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.reacts .chip.mine {
+  border-color: #7a6fd0;
+  background: rgba(122, 111, 208, 0.28);
+}
+
+/* Dim rather than invisible. A control nobody can see is a control nobody finds, and
+   hover-to-reveal hides it outright on a touch screen. */
+.reacts .add {
+  opacity: 0.45;
+  color: #9096a8;
+  transition: opacity 0.12s;
+}
+
+.msg:hover .reacts .add,
+.reacts.open .add,
+.reacts .add:focus-visible { opacity: 1; }
+
+.reacts .palette {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: #12141b;
+  border: 1px solid #3a4055;
+}
+
+.reacts .palette button {
+  border: 0;
+  background: none;
+  padding: 1px 4px;
+}
+
+.reacts .palette button:hover { background: #2c3243; border-radius: 999px; }
+
+/* A poll is a card, not a sentence: the question, one row per option with its own share
+   of the bar, and a tally underneath. */
+.poll {
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px solid #3a4055;
+  border-radius: 8px;
+  background: rgba(18, 20, 27, 0.6);
+}
+
+.poll .q { margin-bottom: 6px; font-weight: 600; }
+
+.poll .opt {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 3px;
+  padding: 4px 8px;
+  overflow: hidden;
+  text-align: left;
+  font-size: 13px;
+}
+
+/* The bar is painted behind the label rather than beside it, so a long option keeps the
+   full width of the card to wrap into. */
+.poll .fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: rgba(122, 111, 208, 0.3);
+  transition: width 0.25s;
+}
+
+.poll .label { position: relative; flex: 1; min-width: 0; }
+.poll .count { position: relative; color: #9096a8; font-variant-numeric: tabular-nums; }
+
+.poll .opt.mine { border-color: #7a6fd0; }
+.poll .opt.win { border-color: #d8a13a; }
+.poll .opt.win .fill { background: rgba(216, 161, 58, 0.32); }
+.poll .opt:disabled { cursor: default; opacity: 0.85; }
+.poll .opt:disabled:hover { background: #232838; }
+
+.poll-foot { margin-top: 2px; font-size: 11px; color: #6f7488; }
+
+#chat-compose { display: none; }
 
 #chat-head {
   display: flex;

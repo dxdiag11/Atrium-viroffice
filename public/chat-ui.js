@@ -36,12 +36,44 @@ function addHistory(list) {
   (list || []).forEach(show);
 }
 
+// Rendered rows are kept by id because a reaction or a vote arrives long after the
+// message did, and the row it belongs to has to be found again to be repainted.
+const rows = new Map(); // message id -> { msg, row }
+
 function show(msg) {
   if (!msg || typeof msg.text !== 'string') return false;
   const follow = atBottom();
-  chatLog.appendChild(renderMessage(msg));
+  const row = renderMessage(msg);
+  rows.set(msg.id, { msg, row });
+  chatLog.appendChild(row);
   if (follow) chatLog.scrollTop = chatLog.scrollHeight;
   return true;
+}
+
+// Repainting the whole row rather than patching one chip: the row is a dozen elements,
+// and a single render path means the message can never disagree with itself.
+function repaint(id) {
+  const entry = rows.get(id);
+  if (!entry || !entry.row.isConnected) return;
+  const follow = atBottom();
+  const fresh = renderMessage(entry.msg);
+  entry.row.replaceWith(fresh);
+  entry.row = fresh;
+  if (follow) chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+function applyReaction({ id, reactions }) {
+  const entry = rows.get(id);
+  if (!entry) return;
+  entry.msg.reactions = reactions || {};
+  repaint(id);
+}
+
+function applyVote({ id, poll }) {
+  const entry = rows.get(id);
+  if (!entry || !poll) return;
+  entry.msg.poll = poll;
+  repaint(id);
 }
 
 function playerNames() {
@@ -94,11 +126,19 @@ function renderMessage(msg) {
     row.appendChild(time);
   }
 
-  const body = document.createElement('span');
-  body.className = 'text';
-  // Built from text nodes only: message text is untrusted, innerHTML is never used.
-  body.appendChild(msg.scope === 'system' ? document.createTextNode(msg.text) : renderText(msg.text));
-  row.appendChild(body);
+  // A poll carries its question inside the card, so printing msg.text too would say it
+  // twice.
+  if (msg.scope === 'poll') {
+    row.appendChild(renderPoll(msg));
+  } else {
+    const body = document.createElement('span');
+    body.className = 'text';
+    // Built from text nodes only: message text is untrusted, innerHTML is never used.
+    body.appendChild(msg.scope === 'system' ? document.createTextNode(msg.text) : renderText(msg.text));
+    row.appendChild(body);
+  }
+
+  if (canReact(msg)) row.appendChild(renderReacts(msg));
 
   if (msg.scope === 'mention') {
     const tag = document.createElement('span');
@@ -108,6 +148,115 @@ function renderMessage(msg) {
   }
 
   return row;
+}
+
+// --- reactions --------------------------------------------------------------
+
+// Only messages the server still holds can be reacted to, and the only ones it holds are
+// global chat and polls. A mention is routed and forgotten by design (that is what keeps
+// it private), so offering a chip on one would just produce a click that does nothing.
+function canReact(msg) {
+  return msg.scope === 'all' || msg.scope === 'poll';
+}
+
+function reactChip(msg, emoji, list) {
+  const chip = document.createElement('button');
+  chip.type = 'button';
+  chip.className = 'chip' + (list.some((v) => v.id === myId) ? ' mine' : '');
+  chip.textContent = emoji + ' ' + list.length;
+  chip.title = list.map((v) => v.name).join(', '); // titles are plain text, never parsed
+  chip.addEventListener('click', () => socket.emit('react', { id: msg.id, emoji }));
+  return chip;
+}
+
+function renderReacts(msg) {
+  const bar = document.createElement('div');
+  bar.className = 'reacts';
+
+  for (const [emoji, list] of Object.entries(msg.reactions || {})) {
+    if (list.length) bar.appendChild(reactChip(msg, emoji, list));
+  }
+
+  const palette = document.createElement('span');
+  palette.className = 'palette';
+  palette.hidden = true;
+  for (const emoji of REACTIONS) {
+    const pick = document.createElement('button');
+    pick.type = 'button';
+    pick.textContent = emoji;
+    // The row is repainted when the server answers, which closes the palette on its own.
+    pick.addEventListener('click', () => socket.emit('react', { id: msg.id, emoji }));
+    palette.appendChild(pick);
+  }
+
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'add';
+  // A smiley with a plus reads as "add a reaction" at a glance; a bare "+" reads as
+  // nothing in particular.
+  add.textContent = '\u{1F642}+';
+  add.title = 'Tambah reaksi';
+  add.addEventListener('click', () => {
+    palette.hidden = !palette.hidden;
+    bar.classList.toggle('open', !palette.hidden); // keeps "+" lit while the palette is up
+  });
+
+  bar.appendChild(add);
+  bar.appendChild(palette);
+  return bar;
+}
+
+// --- polls ------------------------------------------------------------------
+
+// A closed poll has to stop taking clicks even for people who never touched the tab, so
+// each open card asks to be repainted the moment it expires. One timer per card, dropped
+// when it fires; a card that gets repainted first simply schedules a fresh one.
+function renderPoll(msg) {
+  const poll = msg.poll;
+  const card = document.createElement('div');
+  card.className = 'poll';
+
+  const question = document.createElement('div');
+  question.className = 'q';
+  question.textContent = poll.question;
+  card.appendChild(question);
+
+  const { counts, total, top } = pollTotals(poll);
+  const closed = Date.now() >= poll.endsAt;
+
+  poll.options.forEach((option, i) => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'opt';
+    row.disabled = closed;
+    if (option.votes.some((v) => v.id === myId)) row.classList.add('mine');
+    if (closed && i === top) row.classList.add('win');
+    if (option.votes.length) row.title = option.votes.map((v) => v.name).join(', ');
+
+    const fill = document.createElement('span');
+    fill.className = 'fill';
+    fill.style.width = (total ? Math.round((counts[i] / total) * 100) : 0) + '%';
+
+    const label = document.createElement('span');
+    label.className = 'label';
+    label.textContent = option.text;
+
+    const count = document.createElement('span');
+    count.className = 'count';
+    count.textContent = String(counts[i]);
+
+    row.append(fill, label, count);
+    row.addEventListener('click', () => socket.emit('vote', { id: msg.id, option: i }));
+    card.appendChild(row);
+  });
+
+  const foot = document.createElement('div');
+  foot.className = 'poll-foot';
+  foot.textContent = total + ' suara · ' + (closed ? 'voting selesai' : 'tutup ' + timeLabel(poll.endsAt));
+  card.appendChild(foot);
+
+  if (!closed) setTimeout(() => repaint(msg.id), poll.endsAt - Date.now() + 200);
+  return card;
 }
 
 // --- unread + notification --------------------------------------------------
@@ -348,4 +497,4 @@ chatInput.addEventListener('keydown', (e) => {
 
 chatInput.setAttribute('maxlength', String(MAX_LEN));
 
-Object.assign(globalThis, { addMessage, addHistory, focusChat, refreshSuggest, setComposing });
+Object.assign(globalThis, { addMessage, addHistory, applyReaction, applyVote, focusChat, refreshSuggest, setComposing });

@@ -273,6 +273,75 @@ mention warnanya beda. Buka panel → badge reset. Tutup satu tab → muncul "ke
 
 ---
 
+## M4 — Emoji reactions + `/vote` `[x]`
+
+**Depends on:** M0
+
+Di luar MVP, dikerjakan setelah desain karakter beres. Dua fitur yang diangkat dari daftar
+"ditunda" di bawah.
+
+**Sintaks `/vote`** — pertanyaan dan pilihan dipisah `|`, karena pertanyaan poll hampir
+selalu mengandung koma dan spasi sedangkan `|` tidak pernah diketik tanpa sengaja:
+
+```
+/vote Makan siang di mana? | Padang | Sate | Bakso
+/vote Lanjut meeting?                       -> otomatis jadi Ya / Tidak
+```
+
+Maksimal 5 pilihan, pertanyaan 120 char, pilihan 40 char, pilihan kembar ditolak. Perintah
+salah → satu Message `scope: 'system'` ke pengirim saja, pesannya tidak dikirim ke siapa
+pun. Perintah lain (`/roll`, dst.) belum ada dan dibalas dengan daftar yang tersedia,
+bukan diam-diam dikirim sebagai chat biasa.
+
+**Perilaku poll:** satu suara per orang; klik pilihan lain memindahkan suara, klik pilihan
+sendiri membatalkannya. Poll tutup sendiri setelah 10 menit (`POLL_MS`) — tidak ada
+perintah tutup manual, dan tidak bisa dibuka lagi. Setelah tutup, pemenang ditandai, tapi
+hanya kalau pemenangnya tunggal: seri tidak mengumumkan siapa pun.
+
+**Perilaku reaction:** palet tetap 6 emoji (`REACTIONS`). Emoji di luar palet ditolak
+server — satu-satunya cara mengirimnya adalah melewati UI. Klik kedua oleh orang yang
+sama menariknya kembali, dan chip yang kosong dihapus sekalian supaya tidak ada chip "0".
+
+**Kenapa hanya pesan global yang bisa direaksi/divoting.** Reaction dan vote adalah
+perubahan pada pesan yang masih dipegang server, dan satu-satunya pesan yang dipegang
+server adalah ring buffer global. Pesan mention sengaja diteruskan lalu dilupakan — itulah
+yang membuatnya privat — jadi tidak ada apa pun untuk ditempeli. UI karenanya tidak
+menampilkan tombol reaksi di pesan mention sama sekali, bukan menampilkannya lalu gagal.
+
+**Tambahan protokol socket**
+
+Client → server:
+
+| Event | Payload |
+|---|---|
+| `react` | `{ id, emoji }` — toggle; emoji wajib anggota `REACTIONS` |
+| `vote` | `{ id, option }` — `option` index integer |
+
+Server → client:
+
+| Event | Payload |
+|---|---|
+| `reacted` | `{ id, reactions }` — seluruh peta emoji, bukan delta |
+| `voted` | `{ id, poll }` — seluruh objek poll |
+
+Dikirim utuh, bukan delta: dua browser yang mengklik bersamaan akan berakhir sepakat.
+Rate limit terpisah dari chat (`TAP_LIMIT`, 20/3 detik) supaya salah klik chip tidak
+memakan jatah untuk membalas orang.
+
+Bentuk **Message** bertambah dua field, keduanya selalu ada:
+
+```js
+reactions: { '👍': [{ id, name }] },  // {} kalau belum ada
+poll: { question, options: [{ text, votes: [{ id, name }] }], endsAt } // null selain scope 'poll'
+```
+
+`scope` bertambah satu nilai: `'poll'`. Pemilih dan pereaksi disimpan `{ id, name }`, bukan
+id saja, karena orangnya bisa saja sudah pulang saat tallynya dibaca dan `?` di tooltip
+lebih buruk daripada nama yang basi beberapa menit.
+
+**Test**: `parseCommand`, `parseVote`, `castVote`, `pollTotals`, `toggleReaction` di
+`test.js`.
+
 ## Urutan
 
 ```
@@ -286,10 +355,12 @@ Rilis MVP = **M0 + M1 + M2**. M3 boleh menyusul.
 
 Jangan kerjakan di MVP ini. Dicatat supaya keputusannya tidak hilang:
 
-proximity/local chat · room chat (butuh `roomAt()` + zones di `office.js`) · bubble chat di
-atas avatar · emote cepat · typing indicator · slash command (`/me`, `/roll`, `/here`) ·
-DM/whisper via klik avatar · reaction ke pesan · ping + waypoint "samperin gue" · sticky
-note di whiteboard · poll · paste gambar.
+proximity/local chat · room chat (butuh `roomAt()` + zones di `office.js`) · emote cepat ·
+slash command lain (`/me`, `/roll`, `/here`) · DM/whisper via klik avatar · ping + waypoint
+"samperin gue" · sticky note di whiteboard · paste gambar.
+
+Sudah dikerjakan setelah MVP: bubble chat di atas avatar + typing indicator
+(`public/bubble.js`), reaction ke pesan dan poll (M4 di atas).
 
 Bentuk Message di MVP ini sudah menyisakan tempat untuk itu: `scope` cukup ditambah nilai
 baru, dan penentuan penerima sudah terpusat di satu fungsi (`resolveRecipients`), jadi
@@ -316,3 +387,22 @@ dikerjakan diam-diam di tengah ticket.
   syaratnya.
 - Chat lewat socket.io, bukan WebRTC data channel. Disengaja: mesh WebRTC di `rtc.js` hanya
   untuk audio dan mati di NAT tanpa TURN, sementara socket.io pasti terhubung untuk semua.
+- Poll dan reaction menempel di pesan yang ada di ring buffer global, jadi keduanya ikut
+  hilang saat orang terakhir keluar dari kantor — sama seperti chatnya. Poll yang masih
+  terbuka pun ikut hilang; kalau nanti terasa mengganggu, obatnya poll disimpan terpisah
+  dari ring buffer chat, bukan membuat ring buffernya lebih awet.
+- `chat-ui.js` menyimpan `rows` (id pesan → baris DOM) supaya reaction/vote yang datang
+  belakangan bisa menemukan barisnya lagi. Peta ini tidak pernah dipangkas, sama seperti
+  `#chat-log` yang juga tidak pernah dipangkas. Kalau suatu saat log dibatasi, pangkas
+  keduanya bersamaan.
+- Verifikasi M4: unit test; skrip websocket dengan 4 klien terhadap server sungguhan;
+  `chat-ui.js` di atas DOM tiruan; **dan dua tab Chrome sungguhan** (Budi + Sari) —
+  `/vote` membuat kartu, klik memindahkan suara, chip reaksi dan highlight "milik saya"
+  benar per penonton, `/help` dan perintah tak dikenal hanya sampai ke pengirim, pesan
+  mention tidak punya tombol reaksi.
+- Tinggi `#chat` naik dari `40vh` ke `clamp(380px, 46vh, 520px)` setelah dilihat di
+  browser: di layar laptop 694px, 40vh memotong kartu poll jadi setengah. Kalau nanti
+  ada elemen chat yang lebih tinggi lagi, naikkan lantainya, jangan `vh`-nya — `vh` kecil
+  di layar pendek justru saat ruangnya paling dibutuhkan.
+- Tombol reaksi sempat `opacity: 0` sampai baris di-hover. Terbukti tidak ketemu orang.
+  Sekarang `0.45` dan penuh saat hover.

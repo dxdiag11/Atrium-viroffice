@@ -229,6 +229,8 @@ function renderRadio() {
 }
 socket.on('chat', (msg) => addMessage(msg));
 socket.on('chat-history', addHistory);
+socket.on('reacted', applyReaction);
+socket.on('voted', applyVote);
 
 socket.on('signal', ({ from, data }) => handleSignal(from, data));
 

@@ -4,6 +4,20 @@ const MAX_LEN = 280;         // chars per message, after trim
 const CHAT_LIMIT = [5, 3000]; // [messages, window ms] per socket
 const HISTORY_MAX = 50;      // global messages kept for late joiners
 
+// Reactions and votes are cheap clicks, so they get a bucket of their own: misclicking a
+// chip three times must not eat the budget you need to answer someone.
+const TAP_LIMIT = [20, 3000];
+
+// A fixed palette rather than any emoji the client feels like sending. Six is enough to
+// answer a message without turning the log into a sticker wall, and a closed set means
+// nothing exotic (or invisible, or 400 code points long) ever reaches another browser.
+const REACTIONS = ['\u{1F44D}', '\u2764\uFE0F', '\u{1F602}', '\u{1F389}', '\u{1F440}', '\u{1F64F}'];
+
+const POLL_MS = 10 * 60 * 1000; // how long a poll stays open
+const POLL_MAX_OPTIONS = 5;
+const POLL_Q_MAX = 120;
+const POLL_OPT_MAX = 40;
+
 // Returns '' for anything that must not be sent, so callers only test one thing.
 function normalizeText(raw) {
   if (typeof raw !== 'string') return '';
@@ -124,4 +138,103 @@ function matchNames(prefix, names, selfName) {
   return (names || []).filter((n) => n.toLowerCase() !== self && n.toLowerCase().startsWith(needle));
 }
 
-Object.assign(globalThis, { MAX_LEN, CHAT_LIMIT, HISTORY_MAX, normalizeText, makeBucket, uniqueName, parseMentions, resolveRecipients, matchNames, WORD_CHAR });
+// --- slash commands ---------------------------------------------------------
+
+// `/vote Makan di mana? | Padang | Sate` -> { name: 'vote', args: 'Makan di mana? | ...' }.
+// Returns null for anything that is not a command, including a bare "/" and "/ hello",
+// so ordinary punctuation is never swallowed as one.
+function parseCommand(text) {
+  const match = /^\/([a-z]+)(?:\s+([\s\S]*))?$/i.exec(String(text || '').trim());
+  return match ? { name: match[1].toLowerCase(), args: (match[2] || '').trim() } : null;
+}
+
+const VOTE_USAGE = 'Cara pakai: /vote Pertanyaan? | Pilihan A | Pilihan B '
+  + '· tanpa pilihan jadi Ya/Tidak.';
+
+// The question and the options are separated by "|" because a poll question routinely
+// contains commas and spaces, and "|" is the one character nobody types by accident.
+// Everything is length-capped here rather than at render time: a 280-char option would
+// otherwise arrive at every other browser before anyone could refuse it.
+function parseVote(args) {
+  const parts = String(args || '').split('|').map((s) => s.trim()).filter(Boolean);
+  const question = (parts.shift() || '').slice(0, POLL_Q_MAX);
+  if (!question) return { error: 'Pertanyaannya mana? ' + VOTE_USAGE };
+
+  // The commonest poll in an office is a yes/no, so asking for one costs no extra typing.
+  const options = (parts.length ? parts : ['Ya', 'Tidak']).map((o) => o.slice(0, POLL_OPT_MAX));
+  if (options.length < 2) return { error: 'Minimal 2 pilihan. ' + VOTE_USAGE };
+  if (options.length > POLL_MAX_OPTIONS) return { error: 'Maksimal ' + POLL_MAX_OPTIONS + ' pilihan.' };
+  if (new Set(options.map((o) => o.toLowerCase())).size !== options.length) {
+    return { error: 'Pilihannya ada yang kembar.' };
+  }
+  return { question, options };
+}
+
+function makePoll(question, options, now) {
+  return {
+    question,
+    options: options.map((text) => ({ text, votes: [] })),
+    endsAt: now + POLL_MS,
+  };
+}
+
+// Voters and reactors are stored as { id, name } rather than bare ids: the person who
+// clicked may well have gone home by the time you read the tally, and "?" in a tooltip
+// is worse than a name that is a few minutes stale.
+function stamp(user) {
+  return { id: user.id, name: user.name };
+}
+
+// One vote per person. Clicking another option moves it; clicking your own cancels it,
+// which is the only way to take a vote back.
+function castVote(poll, user, index, now) {
+  if (!poll || !user || now >= poll.endsAt) return false;
+  if (!Number.isInteger(index) || index < 0 || index >= poll.options.length) return false;
+
+  // The old vote is withdrawn wherever it sat, then the clicked option takes it -- unless
+  // that is where it already was, which is how clicking twice cancels.
+  let changed = false;
+  let had = false;
+  for (const option of poll.options) {
+    const at = option.votes.findIndex((v) => v.id === user.id);
+    if (at < 0) continue;
+    had = option === poll.options[index];
+    option.votes.splice(at, 1);
+    changed = true;
+  }
+  if (!had) {
+    poll.options[index].votes.push(stamp(user));
+    changed = true;
+  }
+  return changed;
+}
+
+// Counts, total and the current leader in one pass. `top` is -1 while nobody has voted
+// and while two options are tied, so nothing is ever announced as the winner by accident.
+function pollTotals(poll) {
+  const counts = poll.options.map((o) => o.votes.length);
+  const total = counts.reduce((a, b) => a + b, 0);
+  const best = Math.max(0, ...counts);
+  const leaders = counts.filter((c) => c === best).length;
+  return { counts, total, top: best > 0 && leaders === 1 ? counts.indexOf(best) : -1 };
+}
+
+// --- reactions --------------------------------------------------------------
+
+// Toggling in place, keyed by emoji, so the wire never carries anything but the palette
+// entries. An emoji outside the palette is dropped rather than corrected: the only way
+// to send one is to bypass the UI.
+function toggleReaction(msg, emoji, user) {
+  if (!msg || !user || !REACTIONS.includes(emoji)) return false;
+  const all = msg.reactions || (msg.reactions = {});
+  const list = all[emoji] || [];
+  const at = list.findIndex((v) => v.id === user.id);
+  if (at >= 0) list.splice(at, 1);
+  else list.push(stamp(user));
+  if (list.length) all[emoji] = list;
+  else delete all[emoji]; // an empty chip is noise; drop the key entirely
+  return true;
+}
+
+Object.assign(globalThis, { MAX_LEN, CHAT_LIMIT, HISTORY_MAX, TAP_LIMIT, REACTIONS, POLL_MS, POLL_MAX_OPTIONS, POLL_Q_MAX, POLL_OPT_MAX, VOTE_USAGE, normalizeText, makeBucket, uniqueName, parseMentions, resolveRecipients, matchNames, parseCommand, parseVote, makePoll, castVote, pollTotals, toggleReaction, WORD_CHAR });
+
