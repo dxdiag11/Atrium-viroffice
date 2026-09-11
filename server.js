@@ -15,6 +15,7 @@ const app = express();
 app.use(express.static(__dirname + '/public'));
 app.use('/assets/maps', express.static(__dirname + '/assets/maps', { maxAge: '1h' }));
 app.use('/assets/characters', express.static(__dirname + '/assets/characters', { maxAge: '1h' }));
+app.use('/assets/utilities', express.static(__dirname + '/assets/utilities', { maxAge: '1h' }));
 
 // Browsers only hand out a mic on a secure origin. localhost counts as one; a LAN IP
 // does not, so testing with someone on another machine needs https. Run ./make-cert.sh
@@ -48,7 +49,8 @@ function releaseRadio(io) {
 // Mention messages are never pushed here, otherwise a late joiner would read other
 // people's private messages.
 const messages = [];
-const buckets = {}; // socket id -> rate limiter
+const buckets = {}; // socket id -> chat rate limiter
+const taps = {};    // socket id -> reaction/vote rate limiter
 let msgSeq = 0;
 
 function makeMessage(fields) {
@@ -61,8 +63,17 @@ function makeMessage(fields) {
     color: null,
     text: '',
     mentions: [],
+    reactions: {}, // emoji -> [{ id, name }]
+    poll: null,    // only ever set on scope 'poll'
     ...fields,
   };
+}
+
+// Reactions and votes attach to something the server still holds, and the only messages
+// it holds are the global ones in the ring buffer. A mention is routed and forgotten on
+// purpose, so there is deliberately nothing to react to -- see the note in chat-ui.js.
+function messageById(id) {
+  return messages.find((m) => m.id === id) || null;
 }
 
 function remember(msg) {
@@ -82,12 +93,40 @@ function warn(socket, text) {
   socket.emit('chat', makeMessage({ scope: 'system', text }));
 }
 
+const HELP_TEXT = 'Perintah yang ada: /vote, /help. ' + VOTE_USAGE;
+
+// Slash commands are handled before mention routing: a poll is addressed to the room by
+// definition, so "@Sari" inside one would only narrow who can answer it.
+function runCommand(socket, me, { name, args }) {
+  if (name === 'help') return warn(socket, HELP_TEXT);
+  if (name !== 'vote') {
+    return warn(socket, 'Perintah /' + name + ' tidak ada. ' + HELP_TEXT);
+  }
+
+  const parsed = parseVote(args);
+  if (parsed.error) return warn(socket, parsed.error);
+
+  const msg = makeMessage({
+    scope: 'poll',
+    from: socket.id,
+    name: me.name,
+    color: me.color,
+    // The question doubles as the message text so anything that only knows about text --
+    // a log dump, a future notification -- still says something useful.
+    text: parsed.question,
+    poll: makePoll(parsed.question, parsed.options, Date.now()),
+  });
+  remember(msg);
+  io.emit('chat', msg);
+}
+
 io.on('connection', (socket) => {
   socket.on('join', (payload) => {
     if (players[socket.id]) return;
     const raw = String((payload && payload.name) || 'anon').slice(0, 16);
     const name = uniqueName(raw, Object.values(players).map((p) => p.name));
     buckets[socket.id] = makeBucket(CHAT_LIMIT[0], CHAT_LIMIT[1]);
+    taps[socket.id] = makeBucket(TAP_LIMIT[0], TAP_LIMIT[1]);
     const character = characterById(payload && payload.characterId);
     const spawn = {...map.spawn};
     for (let attempt=0; attempt<20; attempt++) {
@@ -101,6 +140,7 @@ io.on('connection', (socket) => {
       characterId: character.id,
       direction: 'down',
       speaking: false,
+      typing: false,
       x: spawn.x,
       y: spawn.y,
       seat: null,
@@ -119,6 +159,11 @@ io.on('connection', (socket) => {
     if (!buckets[socket.id].take(Date.now())) {
       return warn(socket, 'Terlalu cepat. Tunggu sebentar.');
     }
+
+    setTyping(false); // the words are out; a stale "…" would hang over their head
+
+    const command = parseCommand(text);
+    if (command) return runCommand(socket, me, command);
 
     const { scope, ids, unknown } = resolveRecipients(text, socket.id, players);
     if (unknown.length) {
@@ -144,6 +189,27 @@ io.on('connection', (socket) => {
     for (const id of ids) io.to(id).emit('chat', msg);
   });
 
+  // Reactions and votes are edits to a message the server already owns, so the client
+  // sends an intent ("toggle this emoji") and gets the whole new state back. Sending a
+  // delta would mean two browsers that clicked at once end up disagreeing.
+  socket.on('react', (payload) => {
+    const me = players[socket.id];
+    if (!me || !payload || !taps[socket.id].take(Date.now())) return;
+    const msg = messageById(String(payload.id || ''));
+    if (!msg || msg.scope === 'system') return;
+    if (!toggleReaction(msg, payload.emoji, me)) return;
+    io.emit('reacted', { id: msg.id, reactions: msg.reactions });
+  });
+
+  socket.on('vote', (payload) => {
+    const me = players[socket.id];
+    if (!me || !payload || !taps[socket.id].take(Date.now())) return;
+    const msg = messageById(String(payload.id || ''));
+    if (!msg || !msg.poll) return;
+    if (!castVote(msg.poll, me, payload.option, Date.now())) return;
+    io.emit('voted', { id: msg.id, poll: msg.poll });
+  });
+
   socket.on('move', (pos) => {
     const p = players[socket.id];
     if (!p || !pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return;
@@ -157,6 +223,18 @@ io.on('connection', (socket) => {
     p.y = pos.y;
     socket.broadcast.emit('player-moved', { id: socket.id, x: p.x, y: p.y, direction:p.direction });
   });
+
+  // Composing is public the way speaking is: everyone can see the bubble over your head,
+  // nobody can see the draft. Mention drafts included -- who is typing leaks nothing, and
+  // hiding it would tell the room you are writing something private.
+  function setTyping(on) {
+    const p = players[socket.id];
+    if (!p || typeof on !== 'boolean' || p.typing === on) return;
+    p.typing = on;
+    socket.broadcast.emit('player-typing', { id: socket.id, on });
+  }
+
+  socket.on('typing', setTyping);
 
   socket.on('speaking', on => {
     const p=players[socket.id];
@@ -220,6 +298,7 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     if (radio === socket.id) releaseRadio(io);
     delete buckets[socket.id];
+    delete taps[socket.id];
     if (!players[socket.id]) return;
     const { name } = players[socket.id];
     delete players[socket.id];

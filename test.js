@@ -293,3 +293,99 @@ test('matchNames filters by prefix and drops yourself', () => {
   assert.deepStrictEqual(matchNames('Budi Gant', names, 'Sari'), []);
   assert.deepStrictEqual(matchNames('budi g', ['Budi Ganteng'], 'Sari'), ['Budi Ganteng']);
 });
+
+test('parseCommand only fires on a real slash command', () => {
+  assert.deepStrictEqual(parseCommand('/vote Makan di mana?'), { name: 'vote', args: 'Makan di mana?' });
+  assert.deepStrictEqual(parseCommand('/VOTE  Ya?  '), { name: 'vote', args: 'Ya?' });
+  assert.deepStrictEqual(parseCommand('/help'), { name: 'help', args: '' });
+  assert.strictEqual(parseCommand('/'), null);
+  assert.strictEqual(parseCommand('/ vote halo'), null);  // a stray slash is punctuation
+  assert.strictEqual(parseCommand('halo /vote'), null);   // only at the start of a message
+  assert.strictEqual(parseCommand('/2fa kode'), null);    // command names are letters
+  assert.strictEqual(parseCommand(''), null);
+  assert.strictEqual(parseCommand(undefined), null);
+});
+
+test('parseVote reads "question | option | option" and defaults to Ya/Tidak', () => {
+  assert.deepStrictEqual(parseVote('Makan di mana? | Padang | Sate | Bakso'), {
+    question: 'Makan di mana?', options: ['Padang', 'Sate', 'Bakso'],
+  });
+
+  // The commonest poll costs no extra typing.
+  assert.deepStrictEqual(parseVote('Lanjut meeting?'), {
+    question: 'Lanjut meeting?', options: ['Ya', 'Tidak'],
+  });
+
+  // Empty segments are dropped, not counted: a trailing "|" is a typo, not an option.
+  assert.deepStrictEqual(parseVote('Pilih? | A | | B |').options, ['A', 'B']);
+
+  assert.ok(parseVote('').error);
+  assert.ok(parseVote('   |  |  ').error);
+  assert.ok(parseVote('Pilih? | A').error);                       // one option is not a vote
+  assert.ok(parseVote('Pilih? | A | B | C | D | E | F').error);   // over POLL_MAX_OPTIONS
+  assert.ok(parseVote('Pilih? | Padang | padang').error);         // duplicates, ignoring case
+
+  const long = parseVote('q'.repeat(300) + ' | ' + 'a'.repeat(100) + ' | b');
+  assert.strictEqual(long.question.length, POLL_Q_MAX);
+  assert.strictEqual(long.options[0].length, POLL_OPT_MAX);
+});
+
+test('castVote keeps one vote per person and lets it be taken back', () => {
+  const now = Date.now();
+  const poll = makePoll('Makan di mana?', ['Padang', 'Sate'], now);
+  const budi = { id: 's1', name: 'Budi' };
+  const sari = { id: 's2', name: 'Sari' };
+
+  assert.ok(castVote(poll, budi, 0, now));
+  assert.ok(castVote(poll, sari, 0, now));
+  assert.deepStrictEqual(pollTotals(poll), { counts: [2, 0], total: 2, top: 0 });
+
+  // Moving a vote must not leave a copy behind on the old option.
+  assert.ok(castVote(poll, budi, 1, now));
+  assert.deepStrictEqual(pollTotals(poll), { counts: [1, 1], total: 2, top: -1 }); // tie: no leader
+
+  // Clicking your own choice again withdraws it.
+  assert.ok(castVote(poll, budi, 1, now));
+  assert.deepStrictEqual(pollTotals(poll), { counts: [1, 0], total: 1, top: 0 });
+
+  assert.deepStrictEqual(poll.options[0].votes, [{ id: 's2', name: 'Sari' }]);
+
+  assert.strictEqual(castVote(poll, budi, 5, now), false);
+  assert.strictEqual(castVote(poll, budi, -1, now), false);
+  assert.strictEqual(castVote(poll, budi, '0', now), false);
+  assert.strictEqual(castVote(poll, budi, 0, now + POLL_MS), false); // closed
+  assert.deepStrictEqual(pollTotals(poll).counts, [1, 0]);
+});
+
+test('pollTotals reports a leader only when there is exactly one', () => {
+  const poll = makePoll('q', ['a', 'b', 'c'], 0);
+  assert.deepStrictEqual(pollTotals(poll), { counts: [0, 0, 0], total: 0, top: -1 });
+  castVote(poll, { id: 's1', name: 'A' }, 2, -1);
+  assert.strictEqual(pollTotals(poll).top, 2);
+});
+
+test('toggleReaction only accepts the palette and drops empty entries', () => {
+  const msg = { reactions: {} };
+  const budi = { id: 's1', name: 'Budi' };
+  const sari = { id: 's2', name: 'Sari' };
+  const thumb = REACTIONS[0];
+
+  assert.ok(toggleReaction(msg, thumb, budi));
+  assert.ok(toggleReaction(msg, thumb, sari));
+  assert.deepStrictEqual(msg.reactions[thumb], [
+    { id: 's1', name: 'Budi' }, { id: 's2', name: 'Sari' },
+  ]);
+
+  assert.ok(toggleReaction(msg, thumb, budi)); // same person again takes it back
+  assert.deepStrictEqual(msg.reactions[thumb], [{ id: 's2', name: 'Sari' }]);
+
+  // The last reactor leaving removes the key, so no zero-count chip is ever rendered.
+  assert.ok(toggleReaction(msg, thumb, sari));
+  assert.deepStrictEqual(msg.reactions, {});
+
+  // Anything outside the palette can only come from a client that bypassed the UI.
+  assert.strictEqual(toggleReaction(msg, '\u{1F4A3}', budi), false);
+  assert.strictEqual(toggleReaction(msg, '<img src=x>', budi), false);
+  assert.strictEqual(toggleReaction(msg, '', budi), false);
+  assert.deepStrictEqual(msg.reactions, {});
+});

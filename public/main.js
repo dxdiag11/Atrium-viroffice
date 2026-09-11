@@ -141,6 +141,7 @@ document.getElementById('range-toggle').addEventListener('click', toggleRange);
 socket.on('players', (all, id, holder) => {
   joining=false;
   for (const oldId of Object.keys(players)) delete players[oldId];
+  resetBubbles();
   myId = id;
   radioHolder = holder || null;
   setSelfId(id);
@@ -192,6 +193,7 @@ socket.on('player-moved', ({ id, x, y, direction }) => {
 });
 
 socket.on('player-speaking',({id,on})=>{if(players[id]) players[id].speaking=on;});
+socket.on('player-typing',({id,on})=>{if(players[id]) setTyping(id,on);});
 socket.on('position-corrected',({x,y})=>{
   const me=players[myId];
   if (!me) return;
@@ -200,6 +202,7 @@ socket.on('position-corrected',({x,y})=>{
 
 socket.on('player-left', (id) => {
   delete players[id];
+  clearBubbles(id);
   closePeer(id);
   refreshSuggest();
 });
@@ -240,6 +243,8 @@ function renderRadio() {
 }
 socket.on('chat', (msg) => addMessage(msg));
 socket.on('chat-history', addHistory);
+socket.on('reacted', applyReaction);
+socket.on('voted', applyVote);
 
 socket.on('signal', ({ from, data }) => handleSignal(from, data));
 
@@ -247,6 +252,8 @@ socket.on('disconnect', () => {
   for (const id of Object.keys(players)) if (id !== myId) closePeer(id);
   for (const id of Object.keys(players)) delete players[id];
   myId=null; joining=false; radioHolder=null; held.clear(); sentX=sentY=null;
+  resetBubbles();
+  setComposing(false);
   document.getElementById('gate').hidden=false;
   document.getElementById('hud').hidden=true;
   document.getElementById('chat').hidden=true;
@@ -572,7 +579,11 @@ function draw(me) {
     ctx.fillRect(camX, camY, viewWidth, viewHeight);
   }
 
-  for (const p of Object.values(players).sort((a,b)=>a.ry-b.ry)) {
+  // Avatars fade with the audio falloff while the range overlay is up; bubbles are drawn
+  // afterwards at full strength, so a distant message stays readable even when the person
+  // saying it is dimmed out.
+  const roster = Object.values(players).sort((a,b)=>a.ry-b.ry);
+  for (const p of roster) {
     ctx.save();
     if (showRange && p.id !== myId) {
       const distance = Math.hypot(p.rx - me.x, p.ry - me.y);
@@ -582,6 +593,7 @@ function draw(me) {
     if (ctx.globalAlpha > 0) drawPlayer(p, p.id === myId);
     ctx.restore();
   }
+  drawBubbles(ctx, roster, performance.now());
 
   const near = nearestSeat(me);
   const hint =
@@ -642,5 +654,6 @@ setInterval(() => {
 }, 100);
 
 initWalkie();
+initBubbles();
 selectCharacter(selectedCharacter);
 requestAnimationFrame(frame);

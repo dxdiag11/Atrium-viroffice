@@ -73,6 +73,103 @@ button.on { background: #7a2b2b; border-color: #a03c3c; }
 #chat.collapsed #chat-log,
 #chat.collapsed #chat-compose { display: none; }
 
+/* Reactions sit under the message, out of the reading line. */
+.reacts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.reacts button {
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid #3a4055;
+  background: #232838;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+#chat .reacts .chip.mine {
+  border-color: #7a6fd0;
+  background: rgba(122, 111, 208, 0.28);
+}
+
+/* Dim rather than invisible. A control nobody can see is a control nobody finds, and
+   hover-to-reveal hides it outright on a touch screen. */
+#chat .reacts .add {
+  opacity: 0.45;
+  color: #cbbf9e;
+  transition: opacity 0.12s;
+}
+
+#chat .msg:hover .reacts .add,
+#chat .reacts.open .add,
+#chat .reacts .add:focus-visible { opacity: 1; }
+
+.reacts .palette {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: #12141b;
+  border: 1px solid #3a4055;
+}
+
+#chat .reacts .palette button {
+  border: 0;
+  background: none;
+  padding: 1px 4px;
+}
+
+#chat .reacts .palette button:hover { background: #50513a; border-radius: 999px; }
+
+/* A poll is a card, not a sentence: the question, one row per option with its own share
+   of the bar, and a tally underneath. */
+.poll {
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px solid #8b765044;
+  border-radius: 8px;
+  background: #151e1899;
+}
+
+.poll .q { margin-bottom: 6px; font-weight: 600; }
+
+.poll .opt {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 3px;
+  padding: 4px 8px;
+  overflow: hidden;
+  text-align: left;
+  font-size: 13px;
+}
+
+/* The bar is painted behind the label rather than beside it, so a long option keeps the
+   full width of the card to wrap into. */
+.poll .fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: rgba(122, 111, 208, 0.3);
+  transition: width 0.25s;
+}
+
+.poll .label { position: relative; flex: 1; min-width: 0; }
+.poll .count { position: relative; color: #aca991; font-variant-numeric: tabular-nums; }
+
+#chat .poll .opt.mine { border-color: #7a6fd0; }
+#chat .poll .opt.win { border-color: #d8a13a; }
+#chat .poll .opt.win .fill { background: rgba(216, 161, 58, 0.32); }
+#chat .poll .opt:disabled { cursor: default; opacity: 0.85; }
+#chat .poll .opt:disabled:hover { background: #3d4230; } /* a closed poll must not answer the cursor */
+
+.poll-foot { margin-top: 2px; font-size: 11px; color: #aca991; }
+
 #chat-head {
   display: flex;
   align-items: center;

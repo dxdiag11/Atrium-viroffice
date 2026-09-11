@@ -122,7 +122,8 @@ hear -- that is the cue to walk over.
 
 Open two tabs, Join in both, allow the mic. **Use headphones** or the two tabs will
 feed back. Move with WASD / arrow keys. Press `` ` `` to draw the audio range rings. Press `Enter`
-to chat and `Escape` to get movement back.
+to chat and `Escape` to get movement back. Hover a message to react to it with an emoji,
+and type `/vote Makan di mana? | Padang | Sate` to put a poll in the room.
 
 ## The office
 
@@ -208,6 +209,8 @@ The filter shape and squelch live in `attachAudio` and `playSquelch` in
 WebRTC mesh, no SFU — every peer connects to every other peer, which is fine up to
 roughly 6-8 people in the room. No TURN server, so this works on localhost and a LAN
 but not across arbitrary NATs. Text chat is global by default; `@name` narrows a message to just the people named
-(server-side, so nobody else receives it). No video, screen share, or persistence --
+(server-side, so nobody else receives it). Reactions and polls attach only to global
+messages, because a mention is routed and never stored -- that is what keeps it private.
+Polls close by themselves after ten minutes; there is no way to reopen one. No video, screen share, or persistence --
 chat history lives in memory, and is wiped both on restart and the moment the last
 person leaves the office.
