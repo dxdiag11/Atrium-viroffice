@@ -32,7 +32,8 @@ const BOT_NAMES = ['Bagas', 'Sari', 'Rizki', 'Putri', 'Dimas', 'Ayu', 'Fajar', '
 const MIN_PLAYERS = 4, MAX_PLAYERS = 10, BOT_FILL_TO = 6;
 const PLAYER_R = 16;
 const SPEED = 190;                 // px/s, used by bots and to bound human moves
-const KILL_RANGE = 74, KILL_COOLDOWN = 25, FIRST_KILL_DELAY = 12;
+const KILL_RANGE = 95, KILL_COOLDOWN = 25, FIRST_KILL_DELAY = 12;
+const VENT_RANGE = 95;
 const REPORT_RANGE = 95, USE_RANGE = 78;
 const MEETING_SECS = 45, TASKS_EACH = 5;
 const SABOTAGE_COOLDOWN = 35;
@@ -53,7 +54,7 @@ function fresh() {
     players: new Map(), order: [], host: null,
     bodies: [], lights: true, sabotageAt: 0,
     startedAt: 0, meeting: null, winner: null, reveal: null,
-    botSeq: 0, timer: null, loop: null, log: [],
+    botSeq: 0, timer: null, loop: null, log: [], practice: false,
   };
 }
 const ensure = () => (G || (G = fresh()));
@@ -90,8 +91,19 @@ function startRound() {
   if (ids.length < MIN_PLAYERS) return;
 
   const nImp = ids.length >= 7 ? 2 : 1;
-  const bag = shuffle([...ids]);
-  const impIds = bag.slice(0, nImp);
+  const humanIds = ids.filter((id) => !P(id).bot);
+  let impIds;
+  if (G.practice && humanIds.length === 1) {
+    // Practice: alone with bots there is nobody to deceive, so let them try the
+    // impostor side on purpose instead of waiting out a 1-in-6 dice roll.
+    impIds = [humanIds[0], ...shuffle(ids.filter((id) => id !== humanIds[0]))].slice(0, nImp);
+  } else if (humanIds.length > nImp) {
+    // Enough people that picking from them gives nothing away, and a bot impostor
+    // is a dull round: it never talks and never lies in a meeting.
+    impIds = shuffle([...humanIds]).slice(0, nImp);
+  } else {
+    impIds = shuffle([...ids]).slice(0, nImp);
+  }
 
   ids.forEach((id) => {
     const p = P(id);
@@ -365,6 +377,7 @@ function viewFor(id) {
 
   return {
     phase: G.phase, host: G.host, min: MIN_PLAYERS, max: MAX_PLAYERS,
+    practice: !!G.practice, humans: humans().length,
     players, bodies: G.bodies, lights: G.lights, progress: prog,
     log: G.log.slice(0, 8), winner: G.winner, reveal: G.reveal, meeting,
     you: me ? {
@@ -408,6 +421,13 @@ io.on('connection', (socket) => {
 
   // Anyone in the room may start or restart. Gating this on a "host" means one stale
   // tab holding that role can lock everybody else out of the game.
+  socket.on('us:practice', (on) => {
+    if (!G || !P(socket.id) || G.phase !== 'LOBBY') return;
+    if (humans().length !== 1) return;          // only meaningful when you are alone
+    G.practice = !!on;
+    broadcast();
+  });
+
   socket.on('us:start', () => { if (G && P(socket.id) && G.phase === 'LOBBY') startRound(); });
   socket.on('us:again', () => { if (G && P(socket.id) && G.phase === 'ENDED') backToLobby(); });
 
@@ -489,7 +509,7 @@ io.on('connection', (socket) => {
   socket.on('us:vent-enter', () => {
     const p = P(socket.id);
     if (!p || !G || G.phase !== 'PLAYING' || !p.alive || !p.impostor || p.vent) return;
-    const v = VENTS.find((x) => dist(p, x) <= USE_RANGE);
+    const v = VENTS.find((x) => dist(p, x) <= VENT_RANGE);
     if (!v) return;
     p.vent = v.id; p.x = v.x; p.y = v.y;
     broadcast();

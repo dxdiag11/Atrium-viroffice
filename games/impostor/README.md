@@ -17,6 +17,14 @@ Atau semuanya sekaligus dari root: `npm run start:all`.
 1. Semua pemain buka dari kursinya masing-masing (nama ikut dari profil kantor).
 2. **Siapa saja** boleh menekan *Mulai permainan* — kursi kosong diisi bot sampai 6
    pemain, jadi tidak perlu menunggu orang lengkap. 7 pemain ke atas → 2 penyusup.
+
+   Pembagian peran: kalau jumlah manusia lebih banyak daripada jumlah penyusup,
+   penyusup selalu diambil dari manusia — bot itu penyusup yang membosankan (tidak
+   pernah bicara, tidak pernah berbohong saat rapat), dan dengan ≥2 manusia hal ini
+   tetap tidak membocorkan siapa orangnya. Kalau kamu sendirian dengan bot, peran
+   dibagi acak seperti biasa — atau centang **"Latihan: jadikan aku penyusup"** di
+   ruang tunggu (hanya muncul saat kamu satu-satunya manusia) untuk langsung mencoba
+   sisi penyusup tanpa menunggu undian 1-dari-6.
 3. **Kru** mengerjakan 5 tugas di berbagai ruangan (masing-masing punya minigame:
    tahan tombol, sambungkan kabel, atau tekan angka berurutan). **Penyusup** dapat
    daftar tugas palsu supaya bisa pura-pura sibuk.

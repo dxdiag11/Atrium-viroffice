@@ -43,6 +43,7 @@
   $('backBtn1').onclick = backToOffice;
   $('leaveBtn').onclick = backToOffice;
   $('startBtn').onclick = () => socket.emit('us:start');
+  $('practiceBox').onchange = (e) => socket.emit('us:practice', e.target.checked);
 
   socket.on('us:map', (m) => { MAP = m; });
   socket.on('us:busy', () => { joined = false; $('prejoinMsg').textContent = 'Permainan sedang berjalan — coba lagi sebentar lagi.'; });
@@ -110,6 +111,11 @@
     // Anyone can start, and empty seats become bots, so there is never a wait on
     // one particular person being present.
     $('startBtn').classList.remove('hidden');
+    // Alone with bots there is nobody to deceive, so offer the impostor side directly
+    // rather than making someone reroll a 1-in-6 chance to try it.
+    const solo = state.humans === 1;
+    $('practiceRow').classList.toggle('hidden', !solo);
+    $('practiceBox').checked = !!state.practice;
     $('lobbyMsg').textContent = ps.length < state.min
       ? 'Bisa langsung mulai — sisanya diisi bot sampai 6 pemain.'
       : 'Siap dimulai — siapa saja boleh menekan mulai.';
@@ -127,8 +133,6 @@
       $('taskPanel').innerHTML = '<h4>' + (you.impostor ? 'TUGAS PALSU' : 'TUGAS KAMU') + '</h4>' +
         you.tasks.map((t) => '<div class="' + (t.done ? 'done' : '') + (you.impostor ? ' fake' : '') + '">' +
           (t.done ? '✔ ' : '• ') + esc(t.name) + ' <span class="dim">(' + esc(t.room) + ')</span></div>').join('');
-      $('killBtn').classList.toggle('hidden', !you.impostor);
-      $('sabotageBtn').classList.toggle('hidden', !you.impostor);
     }
     $('logPanel').innerHTML = (state.log || []).slice(0, 5).map((l) => '<div>' + esc(l) + '</div>').join('');
     updateActions();
@@ -156,13 +160,13 @@
   function nearVent() {
     if (!MAP || !MAP.vents || !state.you || !state.you.impostor) return null;
     const p = at();
-    return MAP.vents.find((v) => Math.hypot(v.x - p.x, v.y - p.y) < 74) || null;
+    return MAP.vents.find((v) => Math.hypot(v.x - p.x, v.y - p.y) < 92) || null;
   }
   function killTarget() {
     if (!state.you || !state.you.impostor || !state.you.alive) return null;
     const p = at();
     return state.players
-      .filter((q) => !q.you && q.alive && q.impostor !== true && Math.hypot(q.x - p.x, q.y - p.y) < 70)
+      .filter((q) => !q.you && q.alive && q.impostor !== true && Math.hypot(q.x - p.x, q.y - p.y) < 92)
       .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0] || null;
   }
 
@@ -180,15 +184,21 @@
 
     $('reportBtn').disabled = !playing || !alive || !nearBody();
 
-    if (you && you.impostor) {
+    // The impostor's three buttons are shown or hidden here and nowhere else: doing it
+    // in two places is how the vent button used to survive into a round as crewmate,
+    // sitting there permanently greyed out.
+    const imp = !!(you && you.impostor);
+    for (const id of ['killBtn', 'sabotageBtn', 'ventBtn']) $(id).classList.toggle('hidden', !imp);
+    if (imp) {
       const kb = $('killBtn');
       kb.disabled = !playing || !alive || you.killIn > 0 || !killTarget();
       kb.textContent = you.killIn > 0 ? you.killIn + 's' : 'BUNUH';
+
       const sb = $('sabotageBtn');
       sb.disabled = !playing || !alive || !state.lights || you.sabotageIn > 0;
+      sb.textContent = you.sabotageIn > 0 ? you.sabotageIn + 's' : 'SABOTASE';
 
       const vb = $('ventBtn');
-      vb.classList.remove('hidden');
       vb.disabled = !playing || !alive || !(you.vent || nearVent());
       vb.textContent = you.vent ? 'KELUAR' : 'VENT';
     }
