@@ -136,15 +136,25 @@
 
 <!-- Muncul saat kamu duduk di depan komputer -->
 <div id="arcade" hidden>
-  <div class="arcade-card">
-    <h2>🕹️ Main Game</h2>
-    <p>Kamu duduk di depan komputer kantor. Mau main apa?</p>
+  <div class="arcade-card" role="dialog" aria-labelledby="arcade-title" aria-describedby="arcade-description">
+    <div class="arcade-eyebrow"><span aria-hidden="true">✦</span> SUDUT REHAT · ATRIUM</div>
+    <h2 id="arcade-title">Rehat sejenak.</h2>
+    <p id="arcade-description">Di sudut gua yang hangat, ada waktu untuk bermain. Pilih permainan dan ajak teman bergabung.</p>
     <div class="arcade-choices">
-      <button type="button" data-game="gaple"><span class="emoji">🀄</span> Gaple</button>
-      <button type="button" data-game="tumble"><span class="emoji">🏃</span> Tumble Rush</button>
-      <button type="button" data-game="werewolf"><span class="emoji">🐺</span> Werewolf</button>
+      <button type="button" data-game="gaple">
+        <span class="arcade-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><rect x="8" y="3" width="16" height="26" rx="3"/><path d="M8 16h16"/><circle cx="13" cy="9" r="1"/><circle cx="19" cy="22" r="1"/><circle cx="13" cy="24" r="1"/><circle cx="19" cy="7" r="1"/></svg></span>
+        <span class="arcade-copy"><strong>Gaple</strong><span>Adu strategi, satu keping demi satu keping.</span></span><span class="arcade-arrow" aria-hidden="true">↗</span>
+      </button>
+      <button type="button" data-game="tumble">
+        <span class="arcade-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M5 27l7-12 6 12M14 27l5-8 8 8M21 18V4l7 3-7 4M5 10h6M3 14h4"/></svg></span>
+        <span class="arcade-copy"><strong>Tumble Rush</strong><span>Lewati rintangan. Bertahan sampai akhir.</span></span><span class="arcade-arrow" aria-hidden="true">↗</span>
+      </button>
+      <button type="button" data-game="werewolf">
+        <span class="arcade-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M21 4a12 12 0 1 0 7 18A12 12 0 0 1 21 4Z M24 5v6M21 8h6"/></svg></span>
+        <span class="arcade-copy"><strong>Werewolf</strong><span>Malam menyimpan rahasia. Siapa kawanmu?</span></span><span class="arcade-arrow" aria-hidden="true">↗</span>
+      </button>
     </div>
-    <button id="arcade-close" type="button" class="arcade-x">Nanti dulu</button>
+    <button id="arcade-close" type="button" class="arcade-x">Lanjut bekerja</button>
   </div>
 </div>
 
