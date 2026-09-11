@@ -1,13 +1,52 @@
 # Atrium
 
-A virtual office with proximity voice. Walk close to someone and their mic fades in;
-walk away and it fades out.
+<p align="center">
+  <img src="assets/maps/atrium-cave-office.png" alt="Peta kantor Atrium — sebuah kantor di dalam gua dengan sungai, air terjun, dan kristal biru" width="900">
+</p>
+
+**Atrium adalah kantor virtual 2D dengan *proximity voice*.** Kamu masuk sebagai
+karakter pixel di atas peta kantor di atas, berjalan dengan WASD, dan suara orang
+lain memudar masuk ketika kamu mendekat lalu memudar keluar ketika kamu menjauh —
+persis seperti obrolan di kantor sungguhan. Tidak ada tombol "join meeting":
+kalau mau ngobrol dengan seseorang, tinggal jalan ke mejanya.
+
+Petanya sendiri adalah satu kantor di dalam gua: resepsionis di pintu masuk bawah,
+dua ruang rapat dan sebuah *open-plan* di tengah, pantry dan lounge di sisi kiri,
+ruang server serta *phone booth* di kanan, dan dek kayu di atas kolam kristal
+untuk ngobrol santai. Setiap batu, air, dan perabot benar-benar menghalangi
+jalan — server ikut memvalidasi setiap langkah, jadi tidak bisa menembus dinding.
+
+### Yang ada di dalamnya
+
+- **Proximity voice** — WebRTC mesh, volume mengikuti jarak (`NEAR`/`FAR` di `public/geom.js`), cincin hijau berdenyut di sekitar siapa pun yang sedang bicara.
+- **Walkie-talkie** — tahan `T` untuk siaran ke seluruh lantai, satu kanal, satu orang, lengkap dengan handset di layar dan suara radio yang di-*band-limit*.
+- **Chat, reaksi, dan polling** — `Enter` untuk mengetik, `@nama` untuk pesan privat, hover pesan untuk memberi emoji, `/vote Makan di mana? | Padang | Sate` untuk membuat polling.
+- **51 kursi interaktif** — dekati kursi lalu tekan `E` untuk duduk; satu kursi satu orang.
+- **Game meja** — duduk di kursi yang menghadap monitor dan menu **Main Game** muncul: **Gaple**, **Tumble Rush**, atau **Werewolf**, berjalan sebagai overlay di dalam kantor.
+- **Sepuluh karakter** — dipilih sebelum masuk, dengan sprite jalan dan duduk/bicara dari `assets/characters/`.
+
+### Cara kerjanya (singkat)
+
+`server.js` (Express + Socket.IO) memegang state pemain, kursi, kanal walkie, dan
+riwayat chat — semuanya di memori, hilang saat restart. Klien di `public/`
+menggambar peta dan pemain ke `<canvas>` (`public/office.js`, `public/sprites.js`),
+menangani audio spasial (`public/rtc.js`, `public/geom.js`), dan handset walkie
+(`public/walkie.js`). Tiga game di `games/` adalah server Node terpisah yang
+di-*iframe* oleh kantor. Suara berjalan langsung antar-peserta lewat WebRTC, jadi
+server tidak pernah menyentuh audio.
+
+### Mulai cepat
 
 ```bash
 npm install
 npm start          # http://localhost:3100  (office only)
 npm run start:all  # office + all desk games together
 ```
+
+Buka dua tab, Join di keduanya, izinkan mikrofon, **pakai headphone** supaya tidak
+*feedback*. Untuk mengajak orang lain dari perangkat lain, browser mewajibkan https —
+lihat [Testing with someone else on your LAN](#testing-with-someone-else-on-your-lan)
+atau [Deploy with Docker](#deploy-with-docker) di bawah.
 
 ## Deploy with Docker
 
