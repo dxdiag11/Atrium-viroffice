@@ -1,41 +1,40 @@
 # Atrium
 
 <p align="center">
-  <img src="assets/maps/atrium-cave-office.png" alt="Peta kantor Atrium — sebuah kantor di dalam gua dengan sungai, air terjun, dan kristal biru" width="900">
+  <img src="assets/maps/atrium-cave-office.png" alt="The Atrium office map — an office inside a cave, with a river, a waterfall, and blue crystals" width="900">
 </p>
 
-**Atrium adalah kantor virtual 2D dengan *proximity voice*.** Kamu masuk sebagai
-karakter pixel di atas peta kantor di atas, berjalan dengan WASD, dan suara orang
-lain memudar masuk ketika kamu mendekat lalu memudar keluar ketika kamu menjauh —
-persis seperti obrolan di kantor sungguhan. Tidak ada tombol "join meeting":
-kalau mau ngobrol dengan seseorang, tinggal jalan ke mejanya.
+**Atrium is a 2D virtual office with *proximity voice*.** You walk in as a pixel
+character on the map above, move with WASD, and other people's voices fade in as you
+get closer and fade out as you walk away — exactly the way a real office sounds. There
+is no "join meeting" button: if you want to talk to someone, you walk to their desk.
 
-Petanya sendiri adalah satu kantor di dalam gua: resepsionis di pintu masuk bawah,
-dua ruang rapat dan sebuah *open-plan* di tengah, pantry dan lounge di sisi kiri,
-ruang server serta *phone booth* di kanan, dan dek kayu di atas kolam kristal
-untuk ngobrol santai. Setiap batu, air, dan perabot benar-benar menghalangi
-jalan — server ikut memvalidasi setiap langkah, jadi tidak bisa menembus dinding.
+The map itself is a single office inside a cave: reception at the entrance downstairs,
+two meeting rooms and an open-plan area in the middle, a pantry and lounge on the left,
+the server room and phone booths on the right, and a wooden deck over the crystal pool
+for the unhurried conversations. Every rock, pool and piece of furniture really does
+block the way — the server validates each step too, so you cannot walk through walls.
 
-### Yang ada di dalamnya
+### What's in it
 
-- **Proximity voice** — WebRTC mesh, volume mengikuti jarak (`NEAR`/`FAR` di `public/geom.js`), cincin hijau berdenyut di sekitar siapa pun yang sedang bicara.
-- **Walkie-talkie** — tahan `T` untuk siaran ke seluruh lantai, satu kanal, satu orang, lengkap dengan handset di layar dan suara radio yang di-*band-limit*.
-- **Chat, reaksi, dan polling** — `Enter` untuk mengetik, `@nama` untuk pesan privat, hover pesan untuk memberi emoji, `/vote Makan di mana? | Padang | Sate` untuk membuat polling.
-- **51 kursi interaktif** — dekati kursi lalu tekan `E` untuk duduk; satu kursi satu orang.
-- **Game meja** — duduk di kursi yang menghadap monitor dan menu **Main Game** muncul: **Gaple**, **Tumble Rush**, atau **Werewolf**, berjalan sebagai overlay di dalam kantor.
-- **Sepuluh karakter** — dipilih sebelum masuk, dengan sprite jalan dan duduk/bicara dari `assets/characters/`.
+- **Proximity voice** — a WebRTC mesh, volume following distance (`NEAR`/`FAR` in `public/geom.js`), and a pulsing green ring around anyone who is speaking.
+- **Walkie-talkie** — hold `T` to broadcast to the whole floor: one channel, one speaker at a time, with an on-screen handset and band-limited radio audio.
+- **Chat, reactions, and polls** — `Enter` to type, `@name` for a private message, hover a message to react with an emoji, `/vote Where for lunch? | Padang | Satay` to put a poll in the room.
+- **51 interactive seats** — walk up to a chair and press `E` to sit; one person per chair.
+- **Desk games** — sit at a chair facing a monitor and a game menu appears: **Gaple**, **Tumble Rush**, or **Werewolf**, running as an overlay inside the office.
+- **Ten characters** — picked before you join, with walking and sitting/talking sprites from `assets/characters/`.
 
-### Cara kerjanya (singkat)
+### How it works (in brief)
 
-`server.js` (Express + Socket.IO) memegang state pemain, kursi, kanal walkie, dan
-riwayat chat — semuanya di memori, hilang saat restart. Klien di `public/`
-menggambar peta dan pemain ke `<canvas>` (`public/office.js`, `public/sprites.js`),
-menangani audio spasial (`public/rtc.js`, `public/geom.js`), dan handset walkie
-(`public/walkie.js`). Tiga game di `games/` adalah server Node terpisah yang
-di-*iframe* oleh kantor. Suara berjalan langsung antar-peserta lewat WebRTC, jadi
-server tidak pernah menyentuh audio.
+`server.js` (Express + Socket.IO) owns player state, seats, the walkie channel, and
+chat history — all in memory, all gone on restart. The client in `public/` draws the
+map and the players to a `<canvas>` (`public/office.js`, `public/sprites.js`), handles
+spatial audio (`public/rtc.js`, `public/geom.js`), and runs the walkie handset
+(`public/walkie.js`). The three games under `games/` are separate Node servers that the
+office iframes. Voice travels directly between participants over WebRTC, so the server
+never touches audio.
 
-### Mulai cepat
+### Quick start
 
 ```bash
 npm install
@@ -43,10 +42,16 @@ npm start          # http://localhost:3100  (office only)
 npm run start:all  # office + all desk games together
 ```
 
-Buka dua tab, Join di keduanya, izinkan mikrofon, **pakai headphone** supaya tidak
-*feedback*. Untuk mengajak orang lain dari perangkat lain, browser mewajibkan https —
-lihat [Testing with someone else on your LAN](#testing-with-someone-else-on-your-lan)
-atau [Deploy with Docker](#deploy-with-docker) di bawah.
+Open two tabs, Join in both, and allow the microphone. **Use headphones** or the two
+tabs will feed back. Move with WASD or the arrow keys. Press `` ` `` to draw the audio
+range rings. Press `Enter` to chat and `Escape` to get movement back. Hover a message to
+react to it with an emoji, and type `/vote Where for lunch? | Padang | Satay` to put a
+poll in the room. A green ring pulses around anyone who is speaking, including people
+too far away to hear — that is the cue to walk over.
+
+To bring in someone on another device, the browser requires https — see
+[Testing with someone else on your LAN](#testing-with-someone-else-on-your-lan) or
+[Deploy with Docker](#deploy-with-docker) below.
 
 ## Deploy with Docker
 
@@ -107,9 +112,10 @@ volume.
 ## Desk games
 
 Sit on a chair that faces a monitor (reception desk, phone booths, the open-plan
-pods) and a **Main Game** menu pops up: **Gaple**, **Tumble Rush**, or **Werewolf**.
-Pick one and it runs in an overlay right inside the office — "✕ Keluar" drops you
-back at your desk.
+pods) and the break-time menu pops up: **Gaple**, **Tumble Rush**, or **Werewolf**.
+Pick one and it runs in an overlay right inside the office — the overlay's exit button
+drops you back at your desk. (The in-game copy is in Indonesian: the dialog reads
+"Rehat sejenak." and the exit button "✕ Keluar & kembali ke kantor".)
 
 Each game has its own dependencies, so a fresh clone needs them installed once before
 `start:all` will come up:
@@ -155,14 +161,6 @@ that the origin counts as secure and the mic prompt appears as normal.
 `NO_TLS=1 npm start` goes back to plain http on 3100 without deleting the cert.
 Re-run `./make-cert.sh` whenever your LAN IP changes. macOS may ask to allow incoming
 connections for `node` the first time — allow it, or nobody can reach you.
-
-A green ring pulses around anyone who is speaking, including people too far away to
-hear -- that is the cue to walk over.
-
-Open two tabs, Join in both, allow the mic. **Use headphones** or the two tabs will
-feed back. Move with WASD / arrow keys. Press `` ` `` to draw the audio range rings. Press `Enter`
-to chat and `Escape` to get movement back. Hover a message to react to it with an emoji,
-and type `/vote Makan di mana? | Padang | Sate` to put a poll in the room.
 
 ## The office
 
@@ -253,3 +251,7 @@ messages, because a mention is routed and never stored -- that is what keeps it 
 Polls close by themselves after ten minutes; there is no way to reopen one. No video, screen share, or persistence --
 chat history lives in memory, and is wiped both on restart and the moment the last
 person leaves the office.
+
+> The application's own interface is in Indonesian (chat notices, the break-time
+> dialog, the game overlay). This README is in English; the quoted UI strings above
+> are reproduced as they actually appear on screen.
