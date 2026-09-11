@@ -59,11 +59,11 @@ test('every mapped seat is reachable from reception without crossing obstacles',
 
 test('cave monitor seats retain the arcade while social seats do not', () => {
   const map = buildOffice();
-  assert.strictEqual(map.seats.filter(seat => seat.game).length, 20);
-  for (const [x, y] of [[553,299],[575,598],[1186,394]]) {
+  assert.strictEqual(map.seats.filter(seat => seat.game).length, 18);
+  for (const [x, y] of [[553,299],[575,598],[926,503]]) {
     assert.strictEqual(map.seats.find(seat => seat.x === x && seat.y === y).game, true);
   }
-  for (const [x, y] of [[304,121],[754,79],[146,702],[1227,819]]) {
+  for (const [x, y] of [[304,121],[754,79],[146,702],[1227,819],[1186,394],[1186,541]]) {
     assert.ok(!map.seats.find(seat => seat.x === x && seat.y === y).game);
   }
 });

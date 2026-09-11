@@ -60,7 +60,7 @@ const OFFICE = {
     {x:490,y:598,dir:'right',game:true},{x:575,y:598,dir:'left',game:true},
     {x:926,y:503,dir:'right',game:true},{x:1010,y:503,dir:'left',game:true},
     {x:926,y:599,dir:'right',game:true},{x:1010,y:599,dir:'left',game:true},
-    {x:1186,y:394,dir:'right',game:true},{x:1186,y:541,dir:'right',game:true},
+    {x:1186,y:394,dir:'right'},{x:1186,y:541,dir:'right'},
     {x:146,y:702,dir:'up'},{x:180,y:702,dir:'up'},
     {x:215,y:702,dir:'up'},{x:250,y:702,dir:'up'},
     {x:541,y:871,dir:'right'},{x:588,y:852,dir:'left'},
