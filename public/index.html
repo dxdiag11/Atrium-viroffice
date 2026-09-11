@@ -82,12 +82,26 @@
 
 <div id="gate">
   <div class="card">
-    <h1>Atrium</h1>
-    <p>Walk close to someone to hear them. Walk away and they fade out.</p>
-    <input id="name" type="text" maxlength="16" placeholder="Your name" autocomplete="off">
-    <button id="join" type="button">Join with mic</button>
+    <div class="eyebrow">A LITTLE CLOSER, EVEN FROM AFAR</div>
+    <h1>Welcome to Atrium<span>.</span></h1>
+    <p>A quiet cave. A shared workspace. Your people, just a few steps away.</p>
+    <div class="onboarding">
+      <section class="identity">
+        <div class="avatar-preview"><div id="character-preview" role="img" aria-label="Selected character preview"></div></div>
+        <span class="eyebrow">YOUR WORKSPACE PERSONA</span>
+        <h2 id="selected-character">Creative technologist</h2>
+        <label for="name">What should we call you?</label>
+        <input id="name" type="text" maxlength="16" placeholder="Your name" autocomplete="nickname">
+        <button id="join" type="button" disabled>Loading workspace…</button>
+      </section>
+      <section class="selection" aria-labelledby="selection-heading">
+        <h2 id="selection-heading">Make yourself at home</h2>
+        <p>Choose your character to step inside.</p>
+        <div id="character-list" role="group" aria-label="Choose your character"></div>
+      </section>
+    </div>
     <p class="warn">Use headphones &mdash; two tabs on speakers will feed back.</p>
-    <p id="error" class="error" hidden></p>
+    <p id="error" class="error" role="alert" hidden></p>
   </div>
 </div>
 
@@ -118,7 +132,8 @@
 <script src="/socket.io/socket.io.js"></script>
 <script src="geom.js"></script>
 <script src="office.js"></script>
-<script src="office-svg.js"></script>
+<script src="characters.js"></script>
+<script src="sprites.js"></script>
 <script src="walkie.js"></script>
 <script src="rtc.js"></script>
 <script src="chat-core.js"></script>

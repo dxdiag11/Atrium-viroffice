@@ -1,8 +1,78 @@
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
 
 require('./public/geom.js');
+require('./public/office.js');
+require('./public/characters.js');
 require('./public/chat-core.js');
+
+test('all selectable characters have both sprite sheets and unknown IDs fall back safely', () => {
+  assert.strictEqual(CHARACTERS.length,10);
+  assert.strictEqual(new Set(CHARACTERS.map(c=>c.id)).size,10);
+  assert.strictEqual(characterById('../../etc/passwd').id,'male-001');
+  for (const c of CHARACTERS) for (const file of ['move.png','sit-talk.png']) {
+    const data=fs.readFileSync(path.join(__dirname,'assets','characters',c.id,file));
+    assert.strictEqual(data.toString('hex',0,8),'89504e470d0a1a0a');
+    assert.strictEqual(data[25],6,c.id+'/'+file+' must be RGBA, not an opaque checkerboard');
+  }
+});
+
+test('sprite cells cover both native export sizes with no assumed 362px crop', () => {
+  for (const [width,height] of [[1448,1086],[1447,1087]]) {
+    const last=spriteFrame(width,height,'right',3);
+    assert.strictEqual(last.x+last.w,width);
+    assert.strictEqual(last.y+last.h,height);
+    assert.strictEqual(spriteFrame(width,height,'left',0).y,height/3);
+    assert.strictEqual(spriteFrame(width,height,'up',0).y,0); // no back-facing art supplied
+  }
+});
+
+test('cave spawn, seats, waterways and desk collisions match artwork coordinates', () => {
+  const map=buildOffice();
+  assert.strictEqual(map.width,1499);
+  assert.strictEqual(map.height,1049);
+  assert.ok(canMove(map.spawn.x,map.spawn.y,RADIUS,map.collisions));
+  for (const s of map.seats) assert.ok(canMove(s.x,s.y,RADIUS,map.collisions),'blocked seat '+JSON.stringify(s));
+  for (const [x,y] of [[25,25],[1300,950],[325,330],[749,524],[750,125],[550,340]]) {
+    assert.ok(!canMove(x,y,RADIUS,map.collisions),'walkable obstacle '+x+','+y);
+  }
+  assert.ok(canMove(350,423,RADIUS,map.collisions),'lounge bridge');
+  assert.ok(canMove(1150,758,RADIUS,map.collisions),'waterfall bridge');
+});
+
+test('every mapped seat is reachable from reception without crossing obstacles', () => {
+  const map=buildOffice(),step=8,cols=Math.ceil(map.width/step),seen=new Set();
+  const queue=[[Math.round(map.spawn.x/step),Math.round(map.spawn.y/step)]];
+  seen.add(queue[0][1]*cols+queue[0][0]);
+  for (let head=0;head<queue.length;head++) {
+    const [x,y]=queue[head];
+    for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nx=x+dx,ny=y+dy,key=ny*cols+nx;
+      if (nx<0||ny<0||nx*step>=map.width||ny*step>=map.height||seen.has(key)) continue;
+      if (canMove(nx*step,ny*step,RADIUS,map.collisions)) {seen.add(key);queue.push([nx,ny]);}
+    }
+  }
+  for (const s of map.seats) assert.ok(queue.some(([x,y])=>Math.hypot(x*step-s.x,y*step-s.y)<20),'unreachable seat '+JSON.stringify(s));
+});
+
+test('cave monitor seats retain the arcade while social seats do not', () => {
+  const map = buildOffice();
+  assert.strictEqual(map.seats.filter(seat => seat.game).length, 20);
+  for (const [x, y] of [[553,299],[575,598],[1186,394]]) {
+    assert.strictEqual(map.seats.find(seat => seat.x === x && seat.y === y).game, true);
+  }
+  for (const [x, y] of [[304,121],[754,79],[146,702],[1227,819]]) {
+    assert.ok(!map.seats.find(seat => seat.x === x && seat.y === y).game);
+  }
+});
+
+test('movement cannot skip walls, non-finite positions or the water', () => {
+  assert.ok(!canTraverse({x:70,y:120},{x:180,y:120},8,[[100,100,50,50]]));
+  assert.ok(!canTraverse({x:70,y:120},{x:NaN,y:120},8,[]));
+  assert.ok(canTraverse({x:50,y:50},{x:70,y:50},8,[]));
+});
 
 test('falloff boundaries', () => {
   assert.strictEqual(falloff(0), 1);

@@ -9,6 +9,9 @@ let localAnalyser = null;
 const levelBuffer = new Float32Array(512);
 let radioCurve = null;   // saturation curve, shared by every peer's radio branch
 let noiseBuffer = null;  // one second of noise, sliced for squelch bursts
+let voiceMeter = null;
+let voiceSamples = null;
+let speakingUntil = 0;
 
 // id -> { pc, polite, makingOffer, ignoreOffer, gain, panner, element }
 const peers = {};
@@ -16,11 +19,16 @@ const peers = {};
 // Called from the Join button, so the user gesture is still active:
 // both getUserMedia and AudioContext need one.
 async function startVoice() {
+  if (localStream && audioCtx) { await audioCtx.resume(); return; }
   localStream = await navigator.mediaDevices.getUserMedia({
     audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false },
   });
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   await audioCtx.resume();
+  voiceMeter=audioCtx.createAnalyser();
+  voiceMeter.fftSize=512;
+  voiceSamples=new Uint8Array(voiceMeter.fftSize);
+  audioCtx.createMediaStreamSource(localStream).connect(voiceMeter);
 
   // Tapped off the raw mic, not off a gain node, so the meter shows what the talker is
   // actually saying regardless of which branch happens to be audible to us.
@@ -32,6 +40,16 @@ async function startVoice() {
   noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.3, audioCtx.sampleRate);
   const noise = noiseBuffer.getChannelData(0);
   for (let i = 0; i < noise.length; i++) noise[i] = Math.random() * 2 - 1;
+}
+
+// Local energy only; sends a boolean animation state, never raw mic data to the server.
+function localSpeaking() {
+  if (!voiceMeter || !localStream || !localStream.getAudioTracks().some(t=>t.enabled)) return false;
+  voiceMeter.getByteTimeDomainData(voiceSamples);
+  let energy=0;
+  for (const value of voiceSamples) energy+=((value-128)/128)**2;
+  if (Math.sqrt(energy/voiceSamples.length)>.025) speakingUntil=performance.now()+280;
+  return performance.now()<speakingUntil;
 }
 
 // Soft clipping. A little of this is what separates "quiet voice" from "voice over a
