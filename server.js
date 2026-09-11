@@ -15,6 +15,7 @@ const app = express();
 app.use(express.static(__dirname + '/public'));
 app.use('/assets/maps', express.static(__dirname + '/assets/maps', { maxAge: '1h' }));
 app.use('/assets/characters', express.static(__dirname + '/assets/characters', { maxAge: '1h' }));
+app.use('/assets/utilities', express.static(__dirname + '/assets/utilities', { maxAge: '1h' }));
 
 // Browsers only hand out a mic on a secure origin. localhost counts as one; a LAN IP
 // does not, so testing with someone on another machine needs https. Run ./make-cert.sh
@@ -101,6 +102,7 @@ io.on('connection', (socket) => {
       characterId: character.id,
       direction: 'down',
       speaking: false,
+      typing: false,
       x: spawn.x,
       y: spawn.y,
       seat: null,
@@ -119,6 +121,8 @@ io.on('connection', (socket) => {
     if (!buckets[socket.id].take(Date.now())) {
       return warn(socket, 'Terlalu cepat. Tunggu sebentar.');
     }
+
+    setTyping(false); // the words are out; a stale "…" would hang over their head
 
     const { scope, ids, unknown } = resolveRecipients(text, socket.id, players);
     if (unknown.length) {
@@ -157,6 +161,18 @@ io.on('connection', (socket) => {
     p.y = pos.y;
     socket.broadcast.emit('player-moved', { id: socket.id, x: p.x, y: p.y, direction:p.direction });
   });
+
+  // Composing is public the way speaking is: everyone can see the bubble over your head,
+  // nobody can see the draft. Mention drafts included -- who is typing leaks nothing, and
+  // hiding it would tell the room you are writing something private.
+  function setTyping(on) {
+    const p = players[socket.id];
+    if (!p || typeof on !== 'boolean' || p.typing === on) return;
+    p.typing = on;
+    socket.broadcast.emit('player-typing', { id: socket.id, on });
+  }
+
+  socket.on('typing', setTyping);
 
   socket.on('speaking', on => {
     const p=players[socket.id];

@@ -24,6 +24,9 @@ function timeLabel(at) {
 
 function addMessage(msg) {
   if (!show(msg)) return;
+  // Only global chat floats over the map. A mention is addressed to a few people, and a
+  // bubble above someone's head is readable by whoever is standing nearby.
+  if (msg.scope === 'all' && msg.from && players[msg.from]) sayBubble(msg.from, msg.text);
   notify(msg);
 }
 
@@ -261,12 +264,36 @@ function moveSuggest(step) {
 chatInput.addEventListener('input', refreshSuggest);
 chatInput.addEventListener('blur', closeSuggest);
 
+// --- typing indicator -------------------------------------------------------
+
+// Everyone else sees a "…" bubble over your head while you compose. The server is only
+// told when the answer changes, and a pause long enough to be a pause takes it down:
+// someone who wandered off mid-sentence should not appear to type forever.
+const TYPING_IDLE = 3000; // ms of stillness that ends a composing run
+
+let composing = false;
+let composeTimer = null;
+
+function setComposing(on) {
+  clearTimeout(composeTimer);
+  if (on) composeTimer = setTimeout(() => setComposing(false), TYPING_IDLE);
+  if (composing === on) return;
+  composing = on;
+  if (myId) setTyping(myId, on); // your own head gets it too; the server only tells others
+  socket.emit('typing', on);
+}
+
+// An empty box is not composing: clearing what you typed should drop the bubble at once.
+chatInput.addEventListener('input', () => setComposing(chatInput.value.trim().length > 0));
+chatInput.addEventListener('blur', () => setComposing(false));
+
 // --- composing --------------------------------------------------------------
 
 function sendChat() {
   const text = normalizeText(chatInput.value);
   chatInput.value = '';
   closeSuggest();
+  setComposing(false);
   if (!text) return;
   socket.emit('chat', { text });
 }
@@ -321,4 +348,4 @@ chatInput.addEventListener('keydown', (e) => {
 
 chatInput.setAttribute('maxlength', String(MAX_LEN));
 
-Object.assign(globalThis, { addMessage, addHistory, focusChat, refreshSuggest });
+Object.assign(globalThis, { addMessage, addHistory, focusChat, refreshSuggest, setComposing });
