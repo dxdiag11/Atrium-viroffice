@@ -9,11 +9,24 @@
 <body>
 <canvas id="stage"></canvas>
 
-<div id="hud" hidden>
-  <button id="mute" type="button">Mute mic</button>
-  <span id="peers">0 nearby</span>
-  <span id="radio">hold T to talk</span>
-  <span class="hint">WASD / arrows &middot; E to sit &middot; Enter to chat &middot; ` for range</span>
+<div id="hud" aria-label="Office controls" hidden>
+  <button id="mute" class="dock-control" type="button" aria-label="Mute microphone" aria-pressed="false" title="Toggle microphone">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg><span id="mic-label" class="sr-only">Mic on</span>
+  </button>
+  <button id="range-toggle" class="dock-control" type="button" aria-label="Show audio range" aria-pressed="false" title="Audio range (`)">
+    <kbd class="dock-key" aria-hidden="true">`</kbd>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg>
+  </button>
+  <button id="chat-open" class="dock-control" type="button" aria-label="Chat" aria-controls="chat" aria-expanded="false" title="Chat (Enter)">
+    <kbd class="dock-key" aria-hidden="true">↵</kbd>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15a3 3 0 0 1-3 3H9l-6 4V6a3 3 0 0 1 3-3h11a3 3 0 0 1 3 3zM7 8h9M7 12h6"/></svg><span id="chat-badge" aria-live="polite" hidden>0</span>
+  </button>
+  <button id="walkie-button" class="dock-control" type="button" aria-label="Hold to talk on walkie-talkie" aria-pressed="false" aria-describedby="radio" title="Hold to talk (T)">
+    <kbd class="dock-key" aria-hidden="true">T</kbd>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V2M15 8V5"/><rect x="5" y="8" width="14" height="14" rx="3"/><path d="M9 12h6M9 16h6M9 19h6M3 12v4"/></svg>
+  </button>
+  <span id="radio" class="sr-only" role="status">hold T to talk</span>
+  <div class="dock-presence" title="People within audio range · Hold T for walkie"><span id="peers">0 nearby</span></div>
 </div>
 
 <div id="walkie" aria-hidden="true">
@@ -66,11 +79,10 @@
 
 <div id="chat" hidden>
   <div id="chat-head">
-    <span>Chat</span>
-    <span id="chat-badge" hidden>0</span>
+    <span>Campfire chat</span>
     <span class="spacer"></span>
     <button id="chat-bell" type="button" title="Notification sound">&#128276;</button>
-    <button id="chat-toggle" type="button">&minus;</button>
+    <button id="chat-toggle" type="button" aria-label="Close chat">&times;</button>
   </div>
   <div id="chat-log"></div>
   <div id="chat-compose">

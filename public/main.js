@@ -123,8 +123,18 @@ document.getElementById('join').addEventListener('click', async (e) => {
 document.getElementById('mute').addEventListener('click', (e) => {
   const on = e.currentTarget.classList.toggle('on');
   setMuted(on);
-  e.currentTarget.textContent = on ? 'Unmute mic' : 'Mute mic';
+  e.currentTarget.setAttribute('aria-pressed', String(on));
+  e.currentTarget.setAttribute('aria-label', on ? 'Unmute microphone' : 'Mute microphone');
+  document.getElementById('mic-label').textContent = on ? 'Mic off' : 'Mic on';
 });
+
+function toggleRange() {
+  showRange = !showRange;
+  const button = document.getElementById('range-toggle');
+  button.setAttribute('aria-pressed', String(showRange));
+  button.setAttribute('aria-label', showRange ? 'Hide audio range' : 'Show audio range');
+}
+document.getElementById('range-toggle').addEventListener('click', toggleRange);
 
 // --- socket ----------------------------------------------------------------
 
@@ -210,18 +220,22 @@ socket.on('radio', ({ id, on }) => {
 socket.on('radio-busy', () => {
   const el = document.getElementById('radio');
   el.textContent = 'channel busy';
-  el.className = 'busy';
+  document.getElementById('walkie-button').classList.add('busy');
   setTimeout(renderRadio, 1000);
 });
 
 function renderRadio() {
   const el = document.getElementById('radio');
   const hud = document.getElementById('hud');
-  const mine = radioHolder === myId;
+  const mine = !!myId && radioHolder === myId;
   const who = players[radioHolder];
 
   el.textContent = !radioHolder ? 'hold T to talk' : mine ? 'ON AIR' : 'on air - ' + (who ? who.name : '?');
-  el.className = radioHolder ? 'live' : '';
+  const button = document.getElementById('walkie-button');
+  button.classList.toggle('live', !!radioHolder);
+  button.classList.remove('busy');
+  button.setAttribute('aria-pressed', String(mine));
+  button.title = radioHolder ? el.textContent : 'Hold to talk (T)';
   hud.classList.toggle('on-air', mine);
 }
 socket.on('chat', (msg) => addMessage(msg));
@@ -235,6 +249,7 @@ socket.on('disconnect', () => {
   myId=null; joining=false; radioHolder=null; held.clear(); sentX=sentY=null;
   document.getElementById('gate').hidden=false;
   document.getElementById('hud').hidden=true;
+  document.getElementById('chat').hidden=true;
   document.getElementById('join').disabled=false;
   showError('Connection lost. Re-enter the office when your connection returns.');
 });
@@ -246,8 +261,39 @@ function addPlayer(p) {
 
 // --- input -----------------------------------------------------------------
 
+const walkieButton = document.getElementById('walkie-button');
+function pressWalkie() {
+  if (!myId || held.has('t')) return;
+  held.add('t');
+  socket.emit('ptt-down');
+}
+function releaseWalkie() {
+  if (!held.has('t')) return;
+  held.delete('t');
+  socket.emit('ptt-up');
+}
+walkieButton.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0 || !e.isPrimary) return;
+  walkieButton.setPointerCapture(e.pointerId);
+  pressWalkie();
+});
+for (const event of ['pointerup', 'pointercancel', 'lostpointercapture', 'blur']) {
+  walkieButton.addEventListener(event, releaseWalkie);
+}
+walkieButton.addEventListener('keydown', (e) => {
+  if (!['Enter', ' '].includes(e.key)) return;
+  e.preventDefault();
+  pressWalkie();
+});
+walkieButton.addEventListener('keyup', (e) => {
+  if (!['Enter', ' '].includes(e.key)) return;
+  e.preventDefault();
+  releaseWalkie();
+});
+
 window.addEventListener('keydown', (e) => {
   if (!myId || ['INPUT','TEXTAREA'].includes(e.target.tagName)) return;
+  if (e.target.closest('button') && ['Enter', ' '].includes(e.key)) return;
   const key = e.key.toLowerCase();
   if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(key)) e.preventDefault();
   if (e.key === 'Enter') {
@@ -257,7 +303,7 @@ window.addEventListener('keydown', (e) => {
     held.clear();
     return focusChat();
   }
-  if (e.key === '`') showRange = !showRange;
+  if (e.key === '`' && !e.repeat) toggleRange();
   if (key === 'e' && !e.repeat && players[myId]) toggleSit(players[myId]);
   // keydown repeats while a key is held, so ask the channel only on the first one.
   if (key === 't' && !held.has('t') && myId) socket.emit('ptt-down');

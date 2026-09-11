@@ -273,7 +273,7 @@ function sendChat() {
 
 function setCollapsed(on) {
   chatPanel.classList.toggle('collapsed', on);
-  chatToggle.textContent = on ? '+' : '\u2212';
+  document.getElementById('chat-open').setAttribute('aria-expanded', String(!on));
   if (!on) clearUnread();
   store('atrium.chat.collapsed', on);
 }
@@ -286,6 +286,12 @@ function focusChat() {
 
 chatToggle.addEventListener('click', () => {
   setCollapsed(!chatPanel.classList.contains('collapsed'));
+  document.getElementById('chat-open').focus();
+});
+
+document.getElementById('chat-open').addEventListener('click', () => {
+  if (chatPanel.classList.contains('collapsed')) focusChat();
+  else setCollapsed(true);
 });
 
 setCollapsed(stored('atrium.chat.collapsed', false));
