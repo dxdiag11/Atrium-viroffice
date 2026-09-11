@@ -57,6 +57,11 @@ rows using its actual size, supporting both supplied export dimensions without
 rewriting the assets. Nearby voice and walkie-talkie still use the existing WebRTC
 mesh; a microphone energy meter publishes only a speaking boolean for animation.
 
+The renderer prepares each frame using its connected character silhouette, normalizes
+standing/seated heights, and places the lower-body center and foot baseline at the
+player's world position. Detached alpha noise does not affect alignment. The main
+canvas uses the display pixel ratio for sharp rendering on Retina screens.
+
 Asset limitations: the supplied sheets have no back-facing row, so moving/facing up
 uses the front row. Some walk poses and character scales still need art cleanup.
 `male-001/sit-talk.png` has been cleaned locally into a transparent RGBA sheet;

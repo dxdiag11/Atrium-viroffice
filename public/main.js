@@ -29,8 +29,8 @@ try {
 } catch (_) { /* Storage can be unavailable in private browsing. */ }
 
 const resize = () => {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  canvas.width = Math.round(window.innerWidth * window.devicePixelRatio);
+  canvas.height = Math.round(window.innerHeight * window.devicePixelRatio);
 };
 window.addEventListener('resize', resize);
 resize();
@@ -364,12 +364,14 @@ function frame(now) {
 }
 
 function draw(me) {
+  const viewWidth=window.innerWidth,viewHeight=window.innerHeight;
+  ctx.setTransform(canvas.width/viewWidth,0,0,canvas.height/viewHeight,0,0);
   ctx.fillStyle = '#14161c';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, viewWidth, viewHeight);
   if (!map || !me) return;
 
-  const camX = canvas.width>map.width?(map.width-canvas.width)/2:clamp(me.x-canvas.width/2,0,map.width-canvas.width);
-  const camY = canvas.height>map.height?(map.height-canvas.height)/2:clamp(me.y-canvas.height/2,0,map.height-canvas.height);
+  const camX = viewWidth>map.width?(map.width-viewWidth)/2:clamp(me.x-viewWidth/2,0,map.width-viewWidth);
+  const camY = viewHeight>map.height?(map.height-viewHeight)/2:clamp(me.y-viewHeight/2,0,map.height-viewHeight);
 
   ctx.save();
   ctx.translate(-camX, -camY);
