@@ -6,7 +6,10 @@
 #
 # Then open http://<server-host>:3100. Browsers only hand out a mic on a secure
 # origin (localhost counts, a public IP/domain does not) — see README.md's
-# "Deploy with Docker" section for the two ways to get https here.
+# "Deploy with Docker" section for the two ways to get https here. Every service
+# switches to https by itself the instant certs/ has key.pem + cert.pem (mounted
+# below); PORT is pinned on the office so it doesn't jump to its non-Docker
+# default of 3443 the moment that happens.
 services:
   atrium:
     build:
@@ -14,11 +17,13 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3100:3100"
+    environment:
+      - PORT=3100
     volumes:
       - ./certs:/app/certs:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:3100/"]
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:3100/ || wget -q -O - --no-check-certificate https://127.0.0.1:3100/"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -33,7 +38,7 @@ services:
       - ./certs:/app/certs:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:3200/"]
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:3200/ || wget -q -O - --no-check-certificate https://127.0.0.1:3200/"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -48,7 +53,7 @@ services:
       - ./certs:/app/certs:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:3300/"]
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:3300/ || wget -q -O - --no-check-certificate https://127.0.0.1:3300/"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -63,7 +68,7 @@ services:
       - ./certs:/app/certs:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:3400/"]
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:3400/ || wget -q -O - --no-check-certificate https://127.0.0.1:3400/"]
       interval: 30s
       timeout: 5s
       retries: 3
