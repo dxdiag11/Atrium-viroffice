@@ -6,3 +6,6 @@ certs/
 *.pem
 
 .DS_Store
+
+# Playwright artifacts (screenshots, traces) from test/browser runs.
+output/

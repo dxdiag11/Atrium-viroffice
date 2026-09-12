@@ -118,13 +118,16 @@ test('panel failure falls back; destination failure cancels and unlocks at sourc
   await page.route('**/assets/transitions/*.png',route=>route.abort());
   await join(page);await travel(page);expect(await page.evaluate(()=>transition.fallback)).toBe(true);
   await travel(page,'office');
+  // Blink's in-page image memory cache reuses the already-decoded recreation bitmap for
+  // an identical URL, bypassing route.abort() entirely -- deleting the promise cache or
+  // disabling the HTTP cache does not touch it. A fresh document has no such cache.
   await page.route('**/assets/maps/atrium-cave-recreation-night.png',route=>route.abort());
-  await page.evaluate(()=>mapImages.delete(getMap('recreation').image));
+  await page.reload();await join(page);
   await walkTo(page,{x:748,y:970});await page.keyboard.down('s');
   await page.waitForFunction(()=>transition.busy);await page.keyboard.up('s');
   await page.waitForFunction(()=>!worldLocked());
   expect(await page.evaluate(()=>players[myId].mapId)).toBe('office');
-  await expect(page.locator('#travel-status')).toContainText('Background');
+  await expect(page.locator('#travel-status')).toContainText('Cannot load');
 });
 test('lost commit result recovers with authoritative sync and disconnect closes the cover',async({page})=>{
   await join(page);
