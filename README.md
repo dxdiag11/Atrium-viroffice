@@ -20,7 +20,7 @@ block the way — the server validates each step too, so you cannot walk through
 
 - **Proximity voice** — a WebRTC mesh, volume following distance (`NEAR`/`FAR` in `public/geom.js`), and a pulsing green ring around anyone who is speaking.
 - **Walkie-talkie** — hold `T` to broadcast to the whole floor: one channel, one speaker at a time, with an on-screen handset and band-limited radio audio.
-- **Chat, reactions, and polls** — `Enter` to type, `@name` for a private message, hover a message to react with an emoji, `/vote Where for lunch? | Padang | Satay` to put a poll in the room.
+- **Chat, reactions, and the voting board** — `Enter` to type, `@name` for a private message, hover a message to react with an emoji, `/vote Where for lunch? | Padang | Satay` to drop the carved quest board over everyone's office: one minute to vote, half a minute of results, one board at a time.
 - **51 interactive seats** — walk up to a chair and press `E` to sit; one person per chair.
 - **Desk games** — sit at a chair facing a monitor and a game menu appears: **Gaple**, **Tumble Rush**, or **Werewolf**, running as an overlay inside the office.
 - **Ten characters** — picked before you join, with walking and sitting/talking sprites from `assets/characters/`.
@@ -48,8 +48,9 @@ tabs will feed back. Move with WASD or the arrow keys, or click where you want t
 walk there on your own — click a chair and you sit down in it when you arrive. Any
 movement key takes the wheel back mid-walk. Press `` ` `` to draw the audio
 range rings. Press `Enter` to chat and `Escape` to get movement back. Hover a message to
-react to it with an emoji, and type `/vote Where for lunch? | Padang | Satay` to put a
-poll in the room. A green ring pulses around anyone who is speaking, including people
+react to it with an emoji, and type `/vote Where for lunch? | Padang | Satay` to raise
+the voting board — it covers the office for everyone until they answer, then folds into a
+badge in the corner that keeps the countdown and the tally in view. A green ring pulses around anyone who is speaking, including people
 too far away to hear — that is the cue to walk over.
 
 To bring in someone on another device, the browser requires https — see
@@ -254,7 +255,9 @@ roughly 6-8 people in the room. No TURN server, so this works on localhost and a
 but not across arbitrary NATs. Text chat is global by default; `@name` narrows a message to just the people named
 (server-side, so nobody else receives it). Reactions and polls attach only to global
 messages, because a mention is routed and never stored -- that is what keeps it private.
-Polls close by themselves after ten minutes; there is no way to reopen one. No video, screen share, or persistence --
+A vote runs for one minute and the closed board stays readable for thirty seconds after
+that; only when those ninety seconds are up will `/vote` start another one. There is no
+way to reopen a board or extend it. No video, screen share, or persistence --
 chat history lives in memory, and is wiped both on restart and the moment the last
 person leaves the office.
 

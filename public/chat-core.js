@@ -13,7 +13,11 @@ const TAP_LIMIT = [20, 3000];
 // nothing exotic (or invisible, or 400 code points long) ever reaches another browser.
 const REACTIONS = ['\u{1F44D}', '\u2764\uFE0F', '\u{1F602}', '\u{1F389}', '\u{1F440}', '\u{1F64F}'];
 
-const POLL_MS = 10 * 60 * 1000; // how long a poll stays open
+// A poll on the board is a moment the whole office stops for, not a background thread:
+// one minute to answer, then half a minute where the board stays up with the result on
+// it before it clears itself away.
+const POLL_MS = 60 * 1000;         // voting is open this long
+const POLL_REVIEW_MS = 30 * 1000;  // ...and the closed board stays readable this long after
 const POLL_MAX_OPTIONS = 5;
 const POLL_Q_MAX = 120;
 const POLL_OPT_MAX = 40;
@@ -170,6 +174,17 @@ function parseVote(args) {
   return { question, options };
 }
 
+// The three ages of a poll. 'open' takes votes, 'review' shows the result and takes
+// nothing, 'over' is gone -- and only then may anyone start another one. Every rule that
+// depends on a poll's age asks here, so the board, the chat card and the server can never
+// disagree about which one it is in.
+function pollPhase(poll, now) {
+  if (!poll) return 'over';
+  if (now < poll.endsAt) return 'open';
+  if (now < poll.endsAt + POLL_REVIEW_MS) return 'review';
+  return 'over';
+}
+
 function makePoll(question, options, now) {
   return {
     question,
@@ -236,5 +251,5 @@ function toggleReaction(msg, emoji, user) {
   return true;
 }
 
-Object.assign(globalThis, { MAX_LEN, CHAT_LIMIT, HISTORY_MAX, TAP_LIMIT, REACTIONS, POLL_MS, POLL_MAX_OPTIONS, POLL_Q_MAX, POLL_OPT_MAX, VOTE_USAGE, normalizeText, makeBucket, uniqueName, parseMentions, resolveRecipients, matchNames, parseCommand, parseVote, makePoll, castVote, pollTotals, toggleReaction, WORD_CHAR });
+Object.assign(globalThis, { MAX_LEN, CHAT_LIMIT, HISTORY_MAX, TAP_LIMIT, REACTIONS, POLL_MS, POLL_REVIEW_MS, POLL_MAX_OPTIONS, POLL_Q_MAX, POLL_OPT_MAX, VOTE_USAGE, normalizeText, makeBucket, uniqueName, parseMentions, resolveRecipients, matchNames, parseCommand, parseVote, makePoll, pollPhase, castVote, pollTotals, toggleReaction, WORD_CHAR });
 

@@ -53,6 +53,11 @@ const buckets = {}; // socket id -> chat rate limiter
 const taps = {};    // socket id -> reaction/vote rate limiter
 let msgSeq = 0;
 
+// The board is a single shared thing on everyone's screen, so there is at most one poll
+// alive at a time. Kept here rather than searched for in `messages`, which is a ring
+// buffer: a busy room could push the open poll out of it and quietly allow a second one.
+let openPoll = null;
+
 function makeMessage(fields) {
   return {
     id: 'm' + ++msgSeq,
@@ -95,6 +100,26 @@ function warn(socket, text) {
 
 const HELP_TEXT = 'Perintah yang ada: /vote, /help. ' + VOTE_USAGE;
 
+// Rounded up, because "tunggu 0 detik" is a lie the moment it is read.
+function secondsLeft(until, now) {
+  return Math.max(1, Math.ceil((until - now) / 1000));
+}
+
+// What to say to someone who asks for a board while one is still on the wall. The two
+// phases fail for different reasons, so they get different sentences.
+function boardBusy(poll, now) {
+  const phase = pollPhase(poll, now);
+  if (phase === 'open') {
+    return 'Papan vote "' + poll.question + '" masih dibuka '
+      + secondsLeft(poll.endsAt, now) + ' detik lagi. Tunggu selesai dulu.';
+  }
+  if (phase === 'review') {
+    return 'Papan vote "' + poll.question + '" baru saja ditutup; hasilnya masih dibaca '
+      + secondsLeft(poll.endsAt + POLL_REVIEW_MS, now) + ' detik lagi.';
+  }
+  return null;
+}
+
 // Slash commands are handled before mention routing: a poll is addressed to the room by
 // definition, so "@Sari" inside one would only narrow who can answer it.
 function runCommand(socket, me, { name, args }) {
@@ -102,6 +127,10 @@ function runCommand(socket, me, { name, args }) {
   if (name !== 'vote') {
     return warn(socket, 'Perintah /' + name + ' tidak ada. ' + HELP_TEXT);
   }
+
+  const now = Date.now();
+  const busy = openPoll && boardBusy(openPoll.poll, now);
+  if (busy) return warn(socket, busy);
 
   const parsed = parseVote(args);
   if (parsed.error) return warn(socket, parsed.error);
@@ -114,8 +143,9 @@ function runCommand(socket, me, { name, args }) {
     // The question doubles as the message text so anything that only knows about text --
     // a log dump, a future notification -- still says something useful.
     text: parsed.question,
-    poll: makePoll(parsed.question, parsed.options, Date.now()),
+    poll: makePoll(parsed.question, parsed.options, now),
   });
+  openPoll = msg;
   remember(msg);
   io.emit('chat', msg);
 }
@@ -321,7 +351,10 @@ io.on('connection', (socket) => {
     // Nobody left in the office: the conversation is over, so the next person to walk
     // in starts on a blank log instead of reading a stranger's backlog. Ids keep
     // counting up, since they are only promised to be unique per server run.
-    if (!Object.keys(players).length) messages.length = 0;
+    if (!Object.keys(players).length) {
+      messages.length = 0;
+      openPoll = null; // an empty room has nobody left to finish the vote
+    }
   });
 });
 

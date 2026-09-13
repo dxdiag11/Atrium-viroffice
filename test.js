@@ -365,6 +365,25 @@ test('pollTotals reports a leader only when there is exactly one', () => {
   assert.strictEqual(pollTotals(poll).top, 2);
 });
 
+test('a poll runs for a minute, then stays readable for another half one', () => {
+  const now = 5_000;
+  const poll = makePoll('Makan di mana?', ['Padang', 'Sate'], now);
+
+  assert.strictEqual(POLL_MS, 60 * 1000);
+  assert.strictEqual(POLL_REVIEW_MS, 30 * 1000);
+  assert.strictEqual(poll.endsAt, now + POLL_MS);
+
+  assert.strictEqual(pollPhase(poll, now), 'open');
+  assert.strictEqual(pollPhase(poll, poll.endsAt - 1), 'open');
+  // The board keeps its result on the wall the moment voting shuts, and takes no more.
+  assert.strictEqual(pollPhase(poll, poll.endsAt), 'review');
+  assert.strictEqual(castVote(poll, { id: 's1', name: 'Budi' }, 0, poll.endsAt), false);
+  assert.strictEqual(pollPhase(poll, poll.endsAt + POLL_REVIEW_MS - 1), 'review');
+  // ...and only then is the floor free for the next /vote.
+  assert.strictEqual(pollPhase(poll, poll.endsAt + POLL_REVIEW_MS), 'over');
+  assert.strictEqual(pollPhase(null, now), 'over');
+});
+
 test('toggleReaction only accepts the palette and drops empty entries', () => {
   const msg = { reactions: {} };
   const budi = { id: 's1', name: 'Budi' };

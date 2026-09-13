@@ -336,6 +336,9 @@ walkieButton.addEventListener('keyup', (e) => {
 
 window.addEventListener('keydown', (e) => {
   if (!myId || ['INPUT','TEXTAREA'].includes(e.target.tagName)) return;
+  // The voting board holds the floor while it is up: walking away from a question you
+  // have not answered yet is exactly what it exists to prevent.
+  if (voteBoardBlocking()) { held.clear(); return; }
   if (e.target.closest('button') && ['Enter', ' '].includes(e.key)) return;
   const key = e.key.toLowerCase();
   if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(key)) e.preventDefault();

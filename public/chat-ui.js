@@ -42,6 +42,7 @@ function addHistory(list) {
 // the new copy and every row above it is frozen -- a reaction or a vote clicked there is
 // sent, answered, and repainted onto a row nobody is looking at.
 function resetChat() {
+  vbClear(); // the board belongs to a session in the office, not to the browser tab
   rows.clear();
   chatLog.textContent = '';
   clearUnread();
@@ -54,6 +55,10 @@ const rows = new Map(); // message id -> { msg, row }
 
 function show(msg) {
   if (!msg || typeof msg.text !== 'string') return false;
+  // A poll is two things at once: a card in the log that stays readable afterwards, and
+  // the board over the whole office while it is running. History goes through here too,
+  // so walking in mid-vote still raises the board.
+  voteBoardSaw(msg);
   const follow = atBottom();
   const row = renderMessage(msg);
   rows.set(msg.id, { msg, row });
@@ -82,6 +87,7 @@ function applyReaction({ id, reactions }) {
 }
 
 function applyVote({ id, poll }) {
+  voteBoardUpdate(id, poll);
   const entry = rows.get(id);
   if (!entry || !poll) return;
   entry.msg.poll = poll;

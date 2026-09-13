@@ -549,3 +549,443 @@ button:disabled { opacity:.55; cursor:wait; }
 }
 #gameframe-hint a { color: #7fc4ff; }
 #gameframe-hint code { color: #e8eaf0; }
+
+/* --- the voting board ------------------------------------------------------
+   A quest board carved out of CSS: wood beams, a parchment sheet pinned to them,
+   torches down the sides. Everything inside the stage is sized in em off the stage's
+   own font-size, so the whole board scales as one drawing on a small window. */
+
+#voteboard {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  --vb-outline: #2f1c0e;
+  --vb-wood: #a4672f;
+  --vb-wood-dark: #6d3f1c;
+  --vb-parchment: #f8e9c8;
+  --vb-ink: #4a2c16;
+}
+
+.vb-shade {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 45%, #2a170a99, #07080be6 70%);
+  backdrop-filter: blur(2px);
+}
+
+.vb-defs { position: absolute; width: 0; height: 0; }
+
+/* One length governs the drawing: the board is 40em wide and everything in it is em,
+   so the board keeps its proportions from a phone to a big monitor. */
+.vb-stage {
+  position: relative;
+  width: 40em;
+  max-width: 88vw;
+  font-size: clamp(9px, min(1.45vw, 1.75vh), 15px);
+  animation: vb-land 0.4s cubic-bezier(0.22, 1.2, 0.4, 1);
+}
+
+/* The board drops in from above, the way a sign is hung. */
+@keyframes vb-land {
+  from { opacity: 0; transform: translateY(-3em) scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Shrunk: the whole board steps aside and only the badge is left on screen. */
+#voteboard.vb-small { pointer-events: none; }
+#voteboard.vb-small .vb-shade,
+#voteboard.vb-small .vb-stage { display: none; }
+
+/* --- folding away and back -------------------------------------------------
+   The board flies between the middle of the screen and the badge in the corner, along a
+   path measured in JS and handed over as --vb-dx/--vb-dy/--vb-scale. Nothing takes a
+   click mid-flight: a button moving under the cursor is a button you cannot aim at. */
+
+#voteboard.vb-folding, #voteboard.vb-unfolding { pointer-events: none; }
+
+#voteboard.vb-folding .vb-stage {
+  animation: vb-fold 0.34s cubic-bezier(0.55, 0, 0.85, 0.35) forwards;
+}
+
+#voteboard.vb-unfolding .vb-stage {
+  animation: vb-fold 0.34s cubic-bezier(0.2, 1.06, 0.42, 1) reverse backwards;
+}
+
+#voteboard.vb-folding .vb-shade { animation: vb-shade 0.34s ease forwards; }
+#voteboard.vb-unfolding .vb-shade { animation: vb-shade 0.34s ease reverse backwards; }
+
+/* A slight twist on the way down: the board tips as it drops into the corner, the way a
+   hung sign would swing off its beam. */
+@keyframes vb-fold {
+  from { transform: none; opacity: 1; }
+  70% { opacity: 0.5; }
+  to {
+    transform: translate(var(--vb-dx, 24rem), var(--vb-dy, 16rem)) scale(var(--vb-scale, 0.12)) rotate(-7deg);
+    opacity: 0;
+  }
+}
+
+@keyframes vb-shade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* The badge catches the board and settles, or ducks out of the way when it leaves. */
+.vb-chip.vb-pop { animation: vb-chip-in 0.34s cubic-bezier(0.2, 1.3, 0.5, 1) backwards; }
+.vb-chip.vb-gone { animation: vb-chip-out 0.17s ease forwards; }
+
+@keyframes vb-chip-in {
+  0% { transform: scale(0.5) translateY(0.6em); opacity: 0; }
+  55% { transform: scale(0.72); opacity: 0.85; }
+  78% { transform: scale(1.12); opacity: 1; }
+  100% { transform: none; opacity: 1; }
+}
+
+@keyframes vb-chip-out {
+  from { transform: none; opacity: 1; }
+  to { transform: scale(0.55) translateY(0.5em); opacity: 0; }
+}
+
+/* While the result is only up for another half minute, the badge asks to be looked at. */
+#voteboard.vb-closing .vb-chip:not(.vb-gone) { animation: vb-chip-knock 1.6s ease-in-out infinite; }
+
+@keyframes vb-chip-knock {
+  0%, 72%, 100% { transform: none; }
+  80% { transform: translateY(-0.18em) rotate(-1.4deg); }
+  90% { transform: translateY(-0.08em) rotate(1deg); }
+}
+
+/* The thick oak carcass. The padding is the wood: posts down the sides, a wide sill at
+   the bottom for the countdown to sit on. */
+.vb-board {
+  position: relative;
+  margin-top: 5.5em;
+  padding: 3.6em 2.6em 5.2em;
+  border: 0.42em solid var(--vb-outline);
+  border-radius: 1.2em;
+  background:
+    repeating-linear-gradient(91deg, #0000 0 1.1em, #3a220e2e 1.1em 1.32em),
+    linear-gradient(100deg, #b0713a 0 3em, var(--vb-wood) 3em, var(--vb-wood-dark) 70%, #57320f);
+  box-shadow: inset 0 0.18em #e0a75e5c, inset 0 -0.7em 1.4em #2b170740, 0 1.8em 3.4em #000b;
+}
+
+/* The cross beam the sign hangs from, sticking out past the frame with a rope wrap at
+   each end, like the reference. */
+.vb-beam {
+  position: absolute;
+  top: -1.6em;
+  left: -3.2em;
+  right: -3.2em;
+  height: 2.1em;
+  border: 0.4em solid var(--vb-outline);
+  border-radius: 0.6em;
+  background:
+    repeating-linear-gradient(90deg, #0000 0 2em, #4a2b1233 2em 2.3em),
+    linear-gradient(180deg, #a9683a, #7a4a20);
+  box-shadow: inset 0 0.16em #e0a75e66;
+}
+
+/* Rope, wound around the beam just inside each end. */
+.vb-beam::before, .vb-beam::after {
+  content: "";
+  position: absolute;
+  top: -0.5em;
+  bottom: -0.5em;
+  width: 1.5em;
+  border: 0.3em solid #5c3d1c;
+  border-radius: 0.35em;
+  background: repeating-linear-gradient(115deg, #d8b173 0 0.34em, #b08a4e 0.34em 0.68em);
+}
+.vb-beam::before { left: 2.2em; }
+.vb-beam::after { right: 2.2em; }
+
+/* --- carved header --------------------------------------------------------- */
+
+.vb-sign {
+  position: absolute;
+  top: -5.6em;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  z-index: 2;
+}
+
+.vb-crystal { width: 4.8em; height: 4.8em; margin-bottom: -0.7em; filter: drop-shadow(0 0 1em #a077f0bb); }
+
+.vb-sign-face {
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  padding: 0.5em 2em 0.6em;
+  border: 0.4em solid var(--vb-outline);
+  border-radius: 1em;
+  background:
+    repeating-linear-gradient(88deg, #0000 0 1.2em, #4a2b1226 1.2em 1.4em),
+    linear-gradient(180deg, #b0713a, #77461d);
+  box-shadow: inset 0 0.18em #e3ad6877, 0 0.5em 1.1em #0007;
+}
+
+.vb-scroll { width: 2.4em; height: 2.4em; }
+
+.vb-title {
+  font: 800 3.1em/1 Georgia, "Times New Roman", serif;
+  letter-spacing: 0.07em;
+  color: #fdf1d4;
+  -webkit-text-stroke: 0.07em var(--vb-ink);
+  paint-order: stroke fill;
+  text-shadow: 0 0.05em 0 #8a5a2f;
+}
+
+/* --- side decorations ------------------------------------------------------ */
+
+.vb-lantern, .vb-torch { position: absolute; z-index: 1; pointer-events: none; }
+.vb-lantern { width: 7.2em; top: -2.6em; left: -6.2em; filter: drop-shadow(0 0 1.4em #ffb84a55); }
+.vb-torch { width: 6em; filter: drop-shadow(0 0 1.6em #ff9c2e55); }
+.vb-torch-l { top: 9em; left: -3.2em; }
+.vb-torch-r { top: 9em; right: -3.2em; }
+
+.vb-flame, .vb-flame-core { transform-origin: 50% 85%; animation: vb-flicker 1.7s ease-in-out infinite; }
+.vb-torch-r .vb-flame { animation-delay: -0.8s; }
+.vb-flame-core { animation-duration: 2.3s; }
+
+@keyframes vb-flicker {
+  0%, 100% { transform: scale(1, 1); opacity: 1; }
+  40% { transform: scale(0.92, 1.08); opacity: 0.92; }
+  70% { transform: scale(1.06, 0.95); opacity: 1; }
+}
+
+/* --- parchment ------------------------------------------------------------- */
+
+.vb-parchment {
+  position: relative;
+  padding: 1.8em 1.6em 1.9em;
+  border-radius: 0.4em;
+  background:
+    radial-gradient(circle at 28% 12%, #fffaf0, #0000 55%),
+    linear-gradient(180deg, var(--vb-parchment), #ecd7ad);
+  box-shadow: inset 0 0 0 0.14em #d8b98a, inset 0 0 3em #c9a06a55, 0 0.5em 1.2em #0000005e;
+  color: var(--vb-ink);
+}
+
+/* Iron pins holding the sheet to the wood, one in each corner. */
+.vb-parchment::before, .vb-parchment::after {
+  content: "";
+  position: absolute;
+  top: 0.7em;
+  width: 0.8em;
+  height: 0.8em;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #c3c8d0, #5e646d 70%);
+  box-shadow: 0 0.12em 0.25em #00000066;
+}
+.vb-parchment::before { left: 0.8em; }
+.vb-parchment::after { right: 0.8em; }
+
+.vb-ask { display: flex; gap: 1em; align-items: flex-start; margin-bottom: 1.3em; }
+.vb-mega { flex: none; width: 4.2em; height: 3.5em; margin-top: 0.15em; }
+
+#vb-question {
+  margin: 0 0 0.3em;
+  font: 800 1.75em/1.2 Georgia, serif;
+  color: #4a2c16;
+  overflow-wrap: anywhere;
+}
+
+#vb-note { margin: 0; font-size: 1.05em; line-height: 1.45; color: #7a5730; }
+
+/* --- options --------------------------------------------------------------- */
+
+.vb-options { display: grid; gap: 0.7em; }
+
+.vb-opt {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.9em;
+  width: 100%;
+  min-height: 3.6em;
+  padding: 0.7em 1em;
+  border: 0.16em solid #c9a670;
+  border-radius: 1em;
+  background: #fbf2dd;
+  color: var(--vb-ink);
+  font: inherit;
+  text-align: left;
+  overflow: hidden;
+  box-shadow: inset 0 0.12em 0.35em #b8925d33;
+  transition: transform 0.1s, border-color 0.12s, background 0.12s;
+}
+
+.vb-opt:hover:not(:disabled) { transform: translateY(-0.1em); border-color: #a4672f; background: #fff8e8; }
+.vb-opt:disabled { cursor: default; }
+
+/* The tally, painted under the row rather than beside it. */
+.vb-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, #e8c88b7a, #dcb06b66);
+  transition: width 0.35s ease;
+}
+
+.vb-radio {
+  position: relative;
+  flex: none;
+  width: 1.6em;
+  height: 1.6em;
+  border: 0.18em solid #a4672f;
+  border-radius: 50%;
+  background: #fffaee;
+}
+
+.vb-opt.mine .vb-radio { background: #7b4cd8; box-shadow: inset 0 0 0 0.18em #fffaee; }
+.vb-opt.mine { border-color: #7b4cd8; }
+.vb-opt.win { border-color: #d8a13a; background: #fff4d8; }
+.vb-opt.win .vb-fill { background: linear-gradient(90deg, #f0c169a8, #e0a94a80); }
+
+.vb-opt-icon {
+  position: relative;
+  flex: none;
+  width: 2em;
+  height: 2em;
+  fill: none;
+  stroke: #5a3618;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.vb-opt-label { position: relative; flex: 1; min-width: 0; font-weight: 700; font-size: 1.15em; overflow-wrap: anywhere; }
+
+.vb-badge {
+  position: relative;
+  flex: none;
+  padding: 0.35em 0.85em;
+  border-radius: 999px;
+  background: #e7d7b4;
+  color: #6b4a24;
+  font-size: 0.95em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- countdown badge ------------------------------------------------------- */
+
+/* Carved into the sill at the bottom of the frame, with a sprig of leaves either side. */
+.vb-timer {
+  position: absolute;
+  left: 50%;
+  bottom: 0.8em;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.9em;
+  padding: 0.35em 2.6em;
+  border: 0.3em solid #3a2412;
+  border-radius: 0.9em;
+  background:
+    repeating-linear-gradient(88deg, #0000 0 1.1em, #4a2b1226 1.1em 1.3em),
+    linear-gradient(180deg, #8a5427, #5d3414);
+  box-shadow: inset 0 0.14em #e0a75e77, inset 0 0 0 0.16em #c9a06a55, 0 0.5em 1.1em #0008;
+  color: #fdf1d4;
+  white-space: nowrap;
+}
+
+.vb-timer::before, .vb-timer::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 1.7em;
+  height: 0.85em;
+  margin-top: -0.4em;
+  background: #5f9f44;
+  border-radius: 100% 0 100% 0;
+  box-shadow: inset 0 0 0 0.1em #3e6e2c;
+}
+.vb-timer::before { left: -0.5em; transform: rotate(-18deg); }
+.vb-timer::after { right: -0.5em; transform: rotate(162deg); }
+
+.vb-hourglass { width: 2.1em; height: 2.9em; }
+.vb-timer-text { display: grid; justify-items: center; line-height: 1.1; }
+#vb-timer-label { font-size: 0.95em; font-weight: 700; letter-spacing: 0.02em; }
+
+#vb-clock {
+  font: 800 2.1em/1.1 Georgia, serif;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 0.55em #ffc86b8c;
+}
+
+/* The half-minute of results reads differently from the minute of voting. */
+#voteboard.vb-closing .vb-timer { background: linear-gradient(180deg, #7d4a3a, #53271a); }
+
+/* --- shrink control and badge ---------------------------------------------- */
+
+.vb-min {
+  position: absolute;
+  top: 0.9em;
+  right: 1em;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.35em 0.8em;
+  border: 0.22em solid #3a2412;
+  border-radius: 0.6em;
+  background: linear-gradient(180deg, #b0713a, #77461d);
+  color: #fdf1d4;
+  font: 700 1em/1 system-ui, sans-serif;
+  box-shadow: inset 0 0.12em #e3ad6866;
+}
+
+.vb-min:hover:not(:disabled) { background: linear-gradient(180deg, #c07f43, #85501f); }
+.vb-min:disabled { opacity: 0.55; cursor: not-allowed; }
+.vb-min-mark { width: 1em; height: 0.22em; background: currentColor; border-radius: 1px; }
+
+/* Once you have voted the board folds down to this: the clock, still running, one click
+   from being opened again. */
+.vb-chip {
+  position: fixed;
+  right: max(20px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 15px;
+  pointer-events: auto;
+  border: 3px solid #2f1c0e;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #a4672f, #6d3f1c);
+  color: #fdf1d4;
+  box-shadow: inset 0 2px #e0a75e66, 0 8px 20px #0008;
+}
+
+.vb-chip:hover { background: linear-gradient(180deg, #b4743a, #7a4820); }
+.vb-chip .vb-hourglass { width: 19px; height: 26px; }
+.vb-chip-text { display: grid; justify-items: start; line-height: 1.15; }
+#vb-chip-label { font-size: 11px; font-weight: 700; }
+#vb-chip-clock { font: 800 18px/1 Georgia, serif; font-variant-numeric: tabular-nums; }
+
+/* On a phone the board takes the whole width, so anything hanging off its sides would
+   hang off the screen. The lantern goes; the torches come in and mount on the posts. */
+@media (max-width: 520px) {
+  .vb-stage { width: 94vw; max-width: 94vw; }
+  .vb-lantern { display: none; }
+  .vb-beam { left: -1.2em; right: -1.2em; }
+  .vb-beam::before { left: 1em; }
+  .vb-beam::after { right: 1em; }
+  .vb-torch-l { left: -1.4em; }
+  .vb-torch-r { right: -1.4em; }
+  .vb-board { padding-left: 2em; padding-right: 2em; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vb-stage { animation: none; }
+  .vb-flame, .vb-flame-core { animation: none; }
+  .vb-fill { transition: none; }
+  /* vote-board.js skips the flight entirely here; these are the belt to that's braces. */
+  #voteboard.vb-folding .vb-stage, #voteboard.vb-unfolding .vb-stage,
+  #voteboard.vb-folding .vb-shade, #voteboard.vb-unfolding .vb-shade,
+  .vb-chip.vb-pop, .vb-chip.vb-gone, #voteboard.vb-closing .vb-chip { animation: none; }
+}
