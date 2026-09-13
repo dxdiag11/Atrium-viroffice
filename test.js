@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 require('./public/geom.js');
+require('./public/pathfind.js');
 require('./public/office.js');
 require('./public/characters.js');
 require('./public/chat-core.js');
@@ -399,4 +400,60 @@ test('do not disturb silences every incoming voice, near or over the radio', () 
   // The radio reaches across the whole floor, so it is the branch DND has to cut too.
   assert.strictEqual(radioGain(FAR + 100, true, false), RADIO_LEVEL);
   assert.strictEqual(radioGain(FAR + 100, true, true), 0);
+});
+
+// --- click to move ---------------------------------------------------------
+
+// canTraverse is too coarse to judge a route by: it samples every RADIUS px and steps
+// clean over slivers of wall that stop someone walking the leg frame by frame. Every leg
+// has to be clear at the resolution it is walked, or the walk stalls halfway there.
+function walkable(map, waypoints, from) {
+  let at = from;
+  for (const point of waypoints) {
+    assert.ok(canMove(point.x, point.y, RADIUS, map.collisions), 'waypoint on rock ' + JSON.stringify(point));
+    assert.ok(clearRun(at, point, RADIUS, map.collisions), 'leg clips a wall ' + JSON.stringify([at, point]));
+    at = point;
+  }
+  return at;
+}
+
+test('a clicked route walks around the cave instead of through it', () => {
+  const map = buildOffice();
+  // Spawn to the library is the long way round: up the hall, through the south door.
+  const library = map.seats[0];
+  const route = routeTo(map, RADIUS, map.spawn, library);
+  assert.ok(route && route.length, 'no route from spawn to the library');
+  const end = walkable(map, route, map.spawn);
+  assert.deepStrictEqual({ x: end.x, y: end.y }, { x: library.x, y: library.y });
+
+  // Every seat has to be reachable, or a chair you can see is a chair you cannot click.
+  for (const seat of map.seats) {
+    const legs = routeTo(map, RADIUS, map.spawn, seat);
+    assert.ok(legs && legs.length, 'unreachable seat ' + JSON.stringify(seat));
+    walkable(map, legs, map.spawn);
+  }
+});
+
+test('clicking rock walks you as close as the floor gets, and off-map goes nowhere', () => {
+  const map = buildOffice();
+
+  // The middle of a desk: nobody can stand there, so stop at its edge rather than refuse.
+  const [dx, dy, dw, dh] = map.collisions[17]; // a meeting-room desk block
+  const desk = { x: dx + dw / 2, y: dy + dh / 2 };
+  assert.ok(!canMove(desk.x, desk.y, RADIUS, map.collisions));
+  const route = routeTo(map, RADIUS, map.spawn, desk);
+  assert.ok(route && route.length);
+  const end = walkable(map, route, map.spawn);
+  assert.ok(Math.hypot(end.x - desk.x, end.y - desk.y) < 80, 'stopped too far from the desk');
+
+  // Rock well away from any floor is a click on nothing, not a walk to the nearest room.
+  assert.strictEqual(routeTo(map, RADIUS, map.spawn, { x: 20, y: 1020 }), null);
+});
+
+test('a clear run across a room is one leg, not a staircase of grid cells', () => {
+  const map = buildOffice();
+  const from = { x: 700, y: 900 };
+  const to = { x: 800, y: 880 };
+  assert.ok(canTraverse(from, to, RADIUS, map.collisions));
+  assert.deepStrictEqual(routeTo(map, RADIUS, from, to), [to]);
 });

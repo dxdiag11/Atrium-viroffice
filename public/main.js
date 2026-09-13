@@ -24,6 +24,10 @@ let joining = false;
 let dndOn = false;      // Do Not Disturb: mic off, and every incoming voice silenced
 let assetsReady = false;
 let mapPromise = null;
+let route = null;       // remaining click-to-move waypoints, or null when walking by hand
+let routeSeat = null;   // chair to drop into once the last waypoint is reached
+let routeGoal = null;   // where the click asked for, kept so a shove can be re-planned
+let replans = 0;
 try {
   selectedCharacter = characterById(localStorage.getItem('atrium.character')).id;
   document.getElementById('name').value = localStorage.getItem('atrium.name') || '';
@@ -225,6 +229,7 @@ socket.on('position-corrected',({x,y})=>{
   const me=players[myId];
   if (!me) return;
   me.x=me.rx=sentX=x; me.y=me.ry=sentY=y;
+  cancelRoute(); // the route was planned from a position the server rejected
 });
 
 socket.on('player-left', (id) => {
@@ -282,6 +287,7 @@ socket.on('disconnect', () => {
   for (const id of Object.keys(players)) if (id !== myId) closePeer(id);
   for (const id of Object.keys(players)) delete players[id];
   myId=null; joining=false; radioHolder=null; held.clear(); sentX=sentY=null;
+  cancelRoute();
   resetBubbles();
   setComposing(false);
   document.getElementById('gate').hidden=false;
@@ -391,6 +397,7 @@ function nearestSeat(me) {
 const seatTaken = (i) => Object.values(players).some((p) => p.seat === i);
 
 function toggleSit(me) {
+  cancelRoute(); // reaching for a chair by hand cancels the one you clicked
   if (me.seat !== null) return stand(me);
   const i = nearestSeat(me);
   if (i < 0 || seatTaken(i)) return;
@@ -417,6 +424,138 @@ function stand(me, step = true) {
   socket.emit('stand', { x: me.x, y: me.y });
   maybeArcade(me); // seat is null now -> closes the game menu
 }
+
+// --- click to move ---------------------------------------------------------
+// Keys are for walking somewhere in particular; a click is for "be over there". Both end
+// up in the same move(), so a route is only ever an autopilot on the normal walk.
+
+const SEAT_HIT = 30; // px around a chair that counts as clicking the chair itself
+
+function cameraFor(me) {
+  const viewWidth = window.innerWidth;
+  const viewHeight = window.innerHeight;
+  return [
+    viewWidth > map.width ? (map.width - viewWidth) / 2 : clamp(me.x - viewWidth / 2, 0, map.width - viewWidth),
+    viewHeight > map.height ? (map.height - viewHeight) / 2 : clamp(me.y - viewHeight / 2, 0, map.height - viewHeight),
+  ];
+}
+
+function cancelRoute() {
+  route = null;
+  routeSeat = null;
+  routeGoal = null;
+  replans = 0;
+}
+
+function seatAt(x, y) {
+  let best = -1;
+  let bestDist = SEAT_HIT;
+  map.seats.forEach((seat, i) => {
+    const dist = Math.hypot(seat.x - x, seat.y - y);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = i;
+    }
+  });
+  return best;
+}
+
+function startRoute(me, goal, seat) {
+  const waypoints = routeTo(map, RADIUS, me, goal);
+  if (!waypoints || !waypoints.length) return cancelRoute();
+  route = waypoints;
+  routeGoal = goal;
+  routeSeat = seat;
+}
+
+function goTo(x, y) {
+  const me = players[myId];
+  if (!me || !map) return;
+  const seat = seatAt(x, y);
+  if (seat === me.seat) return; // clicking the chair you are already sitting in
+  const free = seat >= 0 && !seatTaken(seat);
+  const goal = free ? { x: map.seats[seat].x, y: map.seats[seat].y } : { x, y };
+  if (me.seat === null && Math.hypot(goal.x - me.x, goal.y - me.y) < 2) return;
+  replans = 0;
+  startRoute(me, goal, free ? seat : null);
+}
+
+// Being shoved out of the way mid-route, or a straightened run that grazes a desk corner,
+// leaves the next waypoint unreachable. Re-plan from where we actually stand rather than
+// stopping dead, but not forever: something genuinely blocking means give up and let the
+// keys take over.
+function rerouteOrStop(me) {
+  if (!routeGoal || replans >= 3) return cancelRoute();
+  replans++;
+  startRoute(me, routeGoal, routeSeat);
+}
+
+function walkRoute(me, dt) {
+  if (me.seat !== null) stand(me, false); // the click is a request to leave the chair
+  const oldX = me.x;
+  const oldY = me.y;
+  let budget = SPEED * dt;
+
+  while (budget > 0 && route && route.length) {
+    const next = route[0];
+    const dx = next.x - me.x;
+    const dy = next.y - me.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 0.5) {
+      route.shift();
+      continue;
+    }
+    me.direction = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+    const step = Math.min(budget, dist);
+    const nx = clamp(me.x + (dx / dist) * step, RADIUS, map.width - RADIUS);
+    const ny = clamp(me.y + (dy / dist) * step, RADIUS, map.height - RADIUS);
+    // The whole step first: the waterfall bridges only run diagonally, and neither axis
+    // of a diagonal fits on one by itself. Falling back to the axes slides past a corner
+    // that is merely brushed rather than stopping the walk dead.
+    if (canMove(nx, ny, RADIUS, map.collisions)) {
+      me.x = nx;
+      me.y = ny;
+    } else {
+      if (canMove(nx, me.y, RADIUS, map.collisions)) me.x = nx;
+      if (canMove(me.x, ny, RADIUS, map.collisions)) me.y = ny;
+    }
+    budget -= step;
+  }
+
+  me.walking = me.x !== oldX || me.y !== oldY;
+  if (route && !route.length) return arrive(me);
+  // Wedged: the route no longer fits where we are standing, which is what being shoved
+  // off it mid-walk looks like. Progress since the last frame means the budget to try
+  // again is fresh, so a long walk is not spent by one brush against a doorway.
+  if (!me.walking) return rerouteOrStop(me);
+  replans = 0;
+}
+
+function arrive(me) {
+  const seat = routeSeat;
+  cancelRoute();
+  // The server still owns the chair: two people can click it in the same breath.
+  if (seat !== null && !seatTaken(seat)) socket.emit('sit', seat);
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0 || !e.isPrimary || !myId || !map) return;
+  if (!document.getElementById('gameframe').hidden) return;
+  const me = players[myId];
+  if (!me) return;
+  const [camX, camY] = cameraFor(me);
+  goTo(e.clientX + camX, e.clientY + camY);
+});
+
+// A chair you can click is worth pointing out; the rest of the floor is just floor.
+canvas.addEventListener('pointermove', (e) => {
+  if (!myId || !map) return canvas.style.removeProperty('cursor');
+  const me = players[myId];
+  if (!me) return;
+  const [camX, camY] = cameraFor(me);
+  const seat = seatAt(e.clientX + camX, e.clientY + camY);
+  canvas.style.cursor = seat >= 0 && !seatTaken(seat) ? 'pointer' : 'crosshair';
+});
 
 // --- desk games ----------------------------------------------------------------
 // Sit at a monitor -> pick a game -> it runs in an overlay, right inside the office.
@@ -481,6 +620,7 @@ async function openGame(key) {
   // opening a game mid-transmission strands the channel until the server times it out.
   if (held.has('t')) socket.emit('ptt-up');
   held.clear(); // so you are not still "walking" when you come back
+  cancelRoute();
 }
 
 function closeGame() {
@@ -507,6 +647,10 @@ function move(me, dt) {
   me.walking=false;
   let dx = axis(['a', 'arrowleft'], ['d', 'arrowright']);
   let dy = axis(['w', 'arrowup'], ['s', 'arrowdown']);
+  // Touching a movement key takes the wheel back: an autopilot you cannot interrupt is
+  // worse than no autopilot at all.
+  if (route && (dx || dy)) cancelRoute();
+  if (route) return walkRoute(me, dt);
   if (!dx && !dy) return;
   me.direction=Math.abs(dx)>Math.abs(dy)?(dx<0?'left':'right'):(dy<0?'up':'down');
   const oldX=me.x, oldY=me.y;
@@ -592,8 +736,7 @@ function draw(me) {
   ctx.fillRect(0, 0, viewWidth, viewHeight);
   if (!map || !me) return;
 
-  const camX = viewWidth>map.width?(map.width-viewWidth)/2:clamp(me.x-viewWidth/2,0,map.width-viewWidth);
-  const camY = viewHeight>map.height?(map.height-viewHeight)/2:clamp(me.y-viewHeight/2,0,map.height-viewHeight);
+  const [camX, camY] = cameraFor(me);
 
   ctx.save();
   ctx.translate(-camX, -camY);
@@ -612,6 +755,8 @@ function draw(me) {
     ctx.fillStyle = shade;
     ctx.fillRect(camX, camY, viewWidth, viewHeight);
   }
+
+  if (route && route.length) drawRoute(me);
 
   // Avatars fade with the audio falloff while the range overlay is up; bubbles are drawn
   // afterwards at full strength, so a distant message stays readable even when the person
@@ -639,6 +784,27 @@ function draw(me) {
     ctx.fillText(hint, me.x, me.y + RADIUS + 20);
   }
 
+  ctx.restore();
+}
+
+function drawRoute(me) {
+  const goal = route[route.length - 1];
+  ctx.save();
+  ctx.setLineDash([4, 7]);
+  ctx.strokeStyle = 'rgba(239,213,154,.45)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(me.x, me.y);
+  for (const point of route) ctx.lineTo(point.x, point.y);
+  ctx.stroke();
+
+  // A marker on the floor, so the destination stays readable once the dashes are short.
+  ctx.setLineDash([]);
+  const pulse = 10 + Math.sin(performance.now() / 170) * 2;
+  ctx.strokeStyle = routeSeat !== null ? '#9fe0b0' : '#efd59a';
+  ctx.beginPath();
+  ctx.ellipse(goal.x, goal.y, pulse, pulse * 0.45, 0, 0, Math.PI * 2);
+  ctx.stroke();
   ctx.restore();
 }
 

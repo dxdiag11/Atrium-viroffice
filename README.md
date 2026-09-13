@@ -5,8 +5,9 @@
 </p>
 
 **Atrium is a 2D virtual office with *proximity voice*.** You walk in as a pixel
-character on the map above, move with WASD, and other people's voices fade in as you
-get closer and fade out as you walk away — exactly the way a real office sounds. There
+character on the map above, move with WASD or by clicking where you want to be, and other
+people's voices fade in as you get closer and fade out as you walk away — exactly the way
+a real office sounds. There
 is no "join meeting" button: if you want to talk to someone, you walk to their desk.
 
 The map itself is a single office inside a cave: reception at the entrance downstairs,
@@ -43,7 +44,9 @@ npm run start:all  # office + all desk games together
 ```
 
 Open two tabs, Join in both, and allow the microphone. **Use headphones** or the two
-tabs will feed back. Move with WASD or the arrow keys. Press `` ` `` to draw the audio
+tabs will feed back. Move with WASD or the arrow keys, or click where you want to be and
+walk there on your own — click a chair and you sit down in it when you arrive. Any
+movement key takes the wheel back mid-walk. Press `` ` `` to draw the audio
 range rings. Press `Enter` to chat and `Escape` to get movement back. Hover a message to
 react to it with an emoji, and type `/vote Where for lunch? | Padang | Satay` to put a
 poll in the room. A green ring pulses around anyone who is speaking, including people
