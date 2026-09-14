@@ -10,30 +10,43 @@ people's voices fade in as you get closer and fade out as you walk away — exac
 a real office sounds. There
 is no "join meeting" button: if you want to talk to someone, you walk to their desk.
 
-The map itself is a single office inside a cave: reception at the entrance downstairs,
-two meeting rooms and an open-plan area in the middle, a pantry and lounge on the left,
-the server room and phone booths on the right, and a wooden deck over the crystal pool
-for the unhurried conversations. Every rock, pool and piece of furniture really does
-block the way — the server validates each step too, so you cannot walk through walls.
+The office is a cave: reception at the entrance downstairs, two meeting rooms and an
+open-plan area in the middle, a pantry and lounge on the left, the server room and phone
+booths on the right, and a wooden deck over the crystal pool for the unhurried
+conversations. Walking out the bottom door leads to **Recreation** — round tables,
+a barracks with bunks, two bathrooms, and a party floor with a bar and booths — and
+walking back up its top door returns you to the office, no rejoin, chat, or voice
+connection lost. Every rock, pool and piece of furniture really does block the way —
+the server validates each step too, so you cannot walk through walls.
 
 ### What's in it
 
 - **Proximity voice** — a WebRTC mesh, volume following distance (`NEAR`/`FAR` in `public/geom.js`), and a pulsing green ring around anyone who is speaking.
 - **Walkie-talkie** — hold `T` to broadcast to the whole floor: one channel, one speaker at a time, with an on-screen handset and band-limited radio audio.
 - **Chat, reactions, and the voting board** — `Enter` to type, `@name` for a private message, hover a message to react with an emoji, `/vote Where for lunch? | Padang | Satay` to drop the carved quest board over everyone's office: one minute to vote, half a minute of results, one board at a time.
-- **51 interactive seats** — walk up to a chair and press `E` to sit; one person per chair.
+- **51 interactive seats in the office, 42 more in Recreation** — walk up to a chair, stool, sofa slot, toilet, or bed edge and press `E` to sit; one person per slot, tracked separately per map.
+- **Two-way travel between maps** — walk through a door, a two-panel curtain closes over the whole screen, the server picks your arrival spot, and the curtain opens on the other side. Proximity voice, walkie, chat, mentions, and the voting board all keep working across the trip; DND and mute never change on travel.
 - **Desk games** — sit at a chair facing a monitor and a game menu appears: **Gaple**, **Tumble Rush**, or **Werewolf**, running as an overlay inside the office.
 - **Ten characters** — picked before you join, with walking and sitting/talking sprites from `assets/characters/`.
 
 ### How it works (in brief)
 
 `server.js` (Express + Socket.IO) owns player state, seats, the walkie channel, and
-chat history — all in memory, all gone on restart. The client in `public/` draws the
-map and the players to a `<canvas>` (`public/office.js`, `public/sprites.js`), handles
-spatial audio (`public/rtc.js`, `public/geom.js`), and runs the walkie handset
-(`public/walkie.js`). The three games under `games/` are separate Node servers that the
-office iframes. Voice travels directly between participants over WebRTC, so the server
-never touches audio.
+chat history — all in memory, all gone on restart. Players share one global roster
+(for chat, mentions, walkie, and WebRTC) but are scoped to their current map (`mapId`)
+for movement, collision, seats, and proximity; `public/maps.js` / `public/office.js`
+/ `public/recreation.js` define the map registry. `world-travel.js` is the
+prepare → commit → finish state machine that moves a player between maps: the client
+never picks its own spawn point or map, the server always does, and a `mapRevision`
+on every move/sit/seat packet means a stale or duplicated message from mid-travel is
+simply ignored. The client in `public/` draws the map and the players to a `<canvas>`
+(`public/office.js`, `public/sprites.js`), handles spatial audio (`public/rtc.js`,
+`public/geom.js`), runs the walkie handset (`public/walkie.js`), and drives the
+two-panel travel curtain (`public/map-transition.js`, artwork in
+`assets/transitions/`). The three games under `games/` are separate Node servers that
+the office iframes. Voice travels directly between participants over WebRTC, so the
+server never touches audio, and a trip between maps does not tear down or rebuild any
+peer connection.
 
 ### Quick start
 
@@ -190,6 +203,31 @@ clients push away from each other, which is why a head-on meeting separates even
 seated player is the exception: they never get shoved out of their chair, everyone else
 gives way around them. Nobody is ever pushed through a wall.
 
+## Recreation
+
+The bottom door of the office leads to Recreation, `assets/maps/atrium-cave-recreation-night.png`
+(also 1499 × 1049, same coordinate space as the office). `public/recreation.js` traces
+its floor, collisions, and seats; walking back out its top door returns you to the
+office. Both doors are one continuous walk: no `E`, no dialog, no rejoining.
+
+- **18 chairs** at three round tables (six seats each).
+- **6 bar stools** and **10 sofa slots** (2+2 in the central lounge nook, 3+3 in the
+  party booths) — every slot was placed by inspecting the artwork, not guessed from a
+  furniture count.
+- **2 toilets** and **6 bed edges** (one sit-down slot per bunk; there is no lying-down
+  animation, only the existing sit pose).
+- The DJ console, dance floor, and party area are walkable and can be passed through or
+  stood near, but have no music or DJ controls in this pass.
+
+Every player carries a `mapId` and `mapRevision`. Rendering, collision, seat
+occupancy, and "who's nearby" are scoped to your current map; chat, mentions, polls,
+and the walkie channel stay global. The trip itself is server-authoritative
+(`world-travel.js`): the client asks for a portal, the screen closes with two curtain
+panels, the server picks a free arrival spot on the other map and confirms, and only
+then does the screen open on the new map. If an asset fails to load or the server
+doesn't answer in time, the trip cancels and you're returned to where you started
+rather than left staring at a stuck curtain.
+
 ## Characters
 
 Before joining, choose one of the ten characters from `assets/characters/` and enter
@@ -247,6 +285,18 @@ shut for everyone.
 beyond it), in map pixels, plus `RADIO_LEVEL` for how loud walkie transmissions are.
 The filter shape and squelch live in `attachAudio` and `playSquelch` in
 `public/rtc.js`.
+
+## Testing
+
+```bash
+npm test                  # geometry, protocol, and audio-gain unit tests (node:test)
+npx playwright test       # two-browser travel, cross-map audio/chat, viewport coverage, failure recovery
+```
+
+The Playwright suite (`test/browser/`) boots its own server on port 3198, so it can run
+alongside `npm start`. It covers both travel directions, four reference viewports
+(390×844, 844×390, 1920×1080, 3440×1440), resize mid-animation, `prefers-reduced-motion`,
+and recovery when a panel or destination asset fails to load or a travel result is lost.
 
 ## Limits
 
