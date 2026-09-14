@@ -28,6 +28,60 @@ let route = null;       // remaining click-to-move waypoints, or null when walki
 let routeSeat = null;   // chair to drop into once the last waypoint is reached
 let routeGoal = null;   // where the click asked for, kept so a shove can be re-planned
 let replans = 0;
+let travelRequested=false;
+let requestTimer=null;
+let portalArmed=true;
+let portalCooldown=0;
+let standPending=false;
+const movementKeys=['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'];
+const movementNeedsRelease=new Set();
+function resetMovement() {
+  movementKeys.forEach(key=>{if(held.has(key)) movementNeedsRelease.add(key);held.delete(key);});
+  const me=players[myId];if(me) {me.walking=false;me.transitioning=false;}
+  sentX=sentY=null;standPending=false;
+}
+function worldPayload(extra={}) {
+  const me=players[myId];return {mapId:me?.mapId,mapRevision:me?.mapRevision,...extra};
+}
+function worldLocked() {return travelRequested || transition.busy;}
+let statusTimer;
+function travelStatus(message) {
+  const el=document.getElementById('travel-status');el.textContent=message;el.hidden=!message;
+  clearTimeout(statusTimer);
+  if(message) statusTimer=setTimeout(()=>{if(!worldLocked()) el.hidden=true;},6000);
+}
+function renderLocations() {
+  const me=players[myId],el=document.getElementById('locations');el.hidden=!me;
+  if(!me) return;
+  document.getElementById('map-name').textContent=getMap(me.mapId).name;
+  document.getElementById('location-roster').replaceChildren(...Object.values(players).map(p=>{
+    const li=document.createElement('li');li.textContent=p.name+' · '+getMap(p.mapId).name;return li;
+  }));
+}
+let syncWait=null;
+function syncWorld() {
+  if(syncWait) return syncWait.promise;
+  let resolve;
+  const promise=deadline(new Promise(r=>{resolve=r;}),2500,'Server tidak menjawab sinkronisasi.').finally(()=>{syncWait=null;});
+  syncWait={promise,resolve};socket.emit('world-sync');return promise;
+}
+async function applyWorldPlayer(snapshot) {
+  if(!snapshot || !getMap(snapshot.mapId)) return;
+  const current=players[snapshot.id];
+  if(current && snapshot.mapRevision<current.mapRevision) return;
+  if(snapshot.id===myId) {
+    const image=await deadline(decodedImage(getMap(snapshot.mapId).image),3000,'Map tidak dapat dimuat.');
+    if(!players[snapshot.id] || snapshot.id!==myId) return;
+    map=getMap(snapshot.mapId);background=image;
+    resetMovement();portalArmed=false;portalCooldown=performance.now()+750;
+    document.getElementById('arcade').hidden=true;
+    document.getElementById('gameframe').hidden=true;
+    document.getElementById('gameframe-iframe').src='about:blank';
+  }
+  players[snapshot.id]={...current,...snapshot,rx:snapshot.x,ry:snapshot.y,walkUntil:0,walking:false};
+  clearBubbles(snapshot.id);renderLocations();
+}
+const transition=new MapTransition({socket,apply:applyWorldPlayer,sync:syncWorld,resetMovement,status:travelStatus});
 try {
   selectedCharacter = characterById(localStorage.getItem('atrium.character')).id;
   document.getElementById('name').value = localStorage.getItem('atrium.name') || '';
@@ -43,8 +97,8 @@ resize();
 // --- map -------------------------------------------------------------------
 
 async function loadMap() {
-  map = buildOffice();
-  background = await loadImage(map.image);
+  map = getMap('office');
+  background = await decodedImage(map.image);
 }
 
 function showError(message) {
@@ -176,6 +230,13 @@ socket.on('players', (all, id, holder) => {
   radioHolder = holder || null;
   setSelfId(id);
   for (const p of Object.values(all)) addPlayer(p);
+  map=getMap('office');
+  decodedImage(map.image).then(img=>{if(map.id==='office') background=img;});
+  portalArmed=true;portalCooldown=0;renderLocations();
+  // A reconnect creates a fresh office player, with the existing local mic/DND choices.
+  socket.emit('dnd',dndOn);players[id].dnd=dndOn;
+  transition.prefetch().catch(()=>{});
+  decodedImage(getMap('recreation').image).catch(()=>{});
   for (const otherId of Object.keys(all)) {
     if (otherId !== myId) connectPeer(otherId);
   }
@@ -196,15 +257,17 @@ socket.on('player-joined', (p) => {
   addPlayer(p);
   connectPeer(p.id);
   refreshSuggest(); // an open @-list must show whoever just walked in
+  renderLocations();
 });
 
-socket.on('player-seat', ({ id, seat, x, y }) => {
+socket.on('player-seat', ({ id, seat, x, y, mapId, mapRevision }) => {
   const p = players[id];
-  if (!p) return;
+  if (!p || !worldVersion(p,{mapId,mapRevision})) return;
   p.seat = seat;
   p.x = x;
   p.y = y;
   if (id === myId) {
+    standPending=false;
     p.rx = x;
     p.ry = y;
     sentX = x; // the server already knows this position, don't echo it back
@@ -213,9 +276,9 @@ socket.on('player-seat', ({ id, seat, x, y }) => {
   }
 });
 
-socket.on('player-moved', ({ id, x, y, direction }) => {
+socket.on('player-moved', ({ id, x, y, direction, mapId, mapRevision }) => {
   const p = players[id];
-  if (!p) return;
+  if (!p || !worldVersion(p,{mapId,mapRevision})) return;
   p.x = x;
   p.y = y;
   p.direction=direction || p.direction;
@@ -225,9 +288,9 @@ socket.on('player-moved', ({ id, x, y, direction }) => {
 socket.on('player-speaking',({id,on})=>{if(players[id]) players[id].speaking=on;});
 socket.on('player-dnd',({id,on})=>{if(players[id]) players[id].dnd=on;});
 socket.on('player-typing',({id,on})=>{if(players[id]) setTyping(id,on);});
-socket.on('position-corrected',({x,y})=>{
+socket.on('position-corrected',({x,y,mapId,mapRevision})=>{
   const me=players[myId];
-  if (!me) return;
+  if (!me || !worldVersion(me,{mapId,mapRevision})) return;
   me.x=me.rx=sentX=x; me.y=me.ry=sentY=y;
   cancelRoute(); // the route was planned from a position the server rejected
 });
@@ -237,6 +300,38 @@ socket.on('player-left', (id) => {
   clearBubbles(id);
   closePeer(id);
   refreshSuggest();
+  renderLocations();
+});
+
+socket.on('seat-denied',data=>{
+  if(!players[myId] || !worldVersion(players[myId],data)) return;
+  standPending=false;travelStatus(data.reason || 'Tempat duduk sudah terisi.');
+});
+socket.on('travel-prepared',data=>{
+  clearTimeout(requestTimer);travelRequested=false;
+  if(!getMap(data.targetMapId)) return;
+  portalArmed=false;transition.run(data);
+});
+socket.on('travel-result',data=>{
+  if(transition.busy) return transition.receive(data);
+  if(data.transitionId===null) {
+    clearTimeout(requestTimer);travelRequested=false;resetMovement();travelStatus(data.reason);
+  }
+});
+socket.on('player-map-changed',snapshot=>{
+  // The local swap belongs exclusively to the covered transition controller.
+  if(snapshot.id===myId && transition.busy) return;
+  applyWorldPlayer(snapshot).catch(()=>travelStatus('Map tidak dapat dimuat.'));
+});
+socket.on('world-sync',data=>{
+  for(const [id,p] of Object.entries(data.players)) {
+    if(id!==myId) {addPlayer(p);connectPeer(id);}
+  }
+  for(const id of Object.keys(players)) if(!data.players[id]) {
+    delete players[id];closePeer(id);clearBubbles(id);
+  }
+  renderLocations();refreshSuggest();
+  syncWait?.resolve(data);
 });
 
 socket.on('radio', ({ id, on }) => {
@@ -284,6 +379,11 @@ socket.on('voted', applyVote);
 socket.on('signal', ({ from, data }) => handleSignal(from, data));
 
 socket.on('disconnect', () => {
+  transition.reset();clearTimeout(requestTimer);travelRequested=false;standPending=false;
+  document.getElementById('locations').hidden=true;
+  document.getElementById('gameframe').hidden=true;
+  document.getElementById('arcade').hidden=true;
+  document.getElementById('gameframe-iframe').src='about:blank';
   for (const id of Object.keys(players)) if (id !== myId) closePeer(id);
   for (const id of Object.keys(players)) delete players[id];
   myId=null; joining=false; radioHolder=null; held.clear(); sentX=sentY=null;
@@ -346,7 +446,7 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     // Movement keys are only released by a keyup, and the input swallows nothing, but
     // clearing here means a key held while jumping into chat can never stay stuck.
-    held.clear();
+    resetMovement();
     return focusChat();
   }
   if (e.key === '`' && !e.repeat) toggleRange();
@@ -356,6 +456,11 @@ window.addEventListener('keydown', (e) => {
   if (key === 'm' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.isContentEditable) {
     toggleDnd();
   }
+  if (worldLocked() && (movementKeys.includes(key) || key==='e')) {
+    if(movementKeys.includes(key)) movementNeedsRelease.add(key);
+    return;
+  }
+  if(movementNeedsRelease.has(key)) return;
   if (key === 'e' && !e.repeat && players[myId]) toggleSit(players[myId]);
   // keydown repeats while a key is held, so ask the channel only on the first one.
   if (key === 't' && !held.has('t') && myId && !dndOn) socket.emit('ptt-down');
@@ -364,6 +469,7 @@ window.addEventListener('keydown', (e) => {
 
 window.addEventListener('keyup', (e) => {
   const key = e.key.toLowerCase();
+  movementNeedsRelease.delete(key);
   if (key === 't') socket.emit('ptt-up');
   held.delete(key);
 });
@@ -373,6 +479,7 @@ window.addEventListener('keyup', (e) => {
 window.addEventListener('blur', () => {
   if (held.has('t')) socket.emit('ptt-up');
   held.clear();
+  movementNeedsRelease.clear();
 });
 
 function axis(negKeys, posKeys) {
@@ -397,35 +504,25 @@ function nearestSeat(me) {
   return best;
 }
 
-const seatTaken = (i) => Object.values(players).some((p) => p.seat === i);
+const seatTaken = (i) => Object.values(players).some((p) => sameMap(p,players[myId]) && p.seat === i);
 
 function toggleSit(me) {
+  if(worldLocked()) return;
   cancelRoute(); // reaching for a chair by hand cancels the one you clicked
   if (me.seat !== null) return stand(me);
   const i = nearestSeat(me);
   if (i < 0 || seatTaken(i)) return;
   // The server decides: it is the only one that can see the other person reaching for
   // the same chair. We sit when 'player-seat' comes back.
-  socket.emit('sit', i);
+  socket.emit('sit', worldPayload({seat:i}));
 }
 
 // step=false when you walk out of the chair: you are already moving, so pushing you
 // backwards first would visibly jerk you the wrong way.
 function stand(me, step = true) {
-  const seat = map.seats[me.seat];
-  me.seat = null; // standing always succeeds, so don't wait for the round trip
-
-  if (step) {
-    const [ox, oy] = STAND_OFFSET[seat.dir] || [0, 44];
-    const nx = clamp(me.x + ox, RADIUS, map.width - RADIUS);
-    const ny = clamp(me.y + oy, RADIUS, map.height - RADIUS);
-    if (canTraverse(me,{x:nx,y:ny}, RADIUS, map.collisions)) {
-      me.x = nx;
-      me.y = ny;
-    }
-  }
-  socket.emit('stand', { x: me.x, y: me.y });
-  maybeArcade(me); // seat is null now -> closes the game menu
+  if(worldLocked() || standPending) return;
+  standPending=true;
+  socket.emit('stand',worldPayload());
 }
 
 // --- click to move ---------------------------------------------------------
@@ -594,13 +691,18 @@ async function gameReachable(port) {
 
 function maybeArcade(me) {
   const seat = me && me.seat !== null ? map.seats[me.seat] : null;
+  if(!seat?.game) {
+    document.getElementById('gameframe').hidden=true;
+    document.getElementById('gameframe-iframe').src='about:blank';
+  }
   const playing = !document.getElementById('gameframe').hidden;
   document.getElementById('arcade').hidden = !(seat && seat.game && !playing);
 }
 
 async function openGame(key) {
   const g = GAMES[key];
-  if (!g) return;
+  const owner=players[myId],revision=owner?.mapRevision,seat=owner?.seat;
+  if (!g || !owner || !map.seats[seat]?.game || worldLocked()) return;
   const iframe = document.getElementById('gameframe-iframe');
   const hint = document.getElementById('gameframe-hint');
 
@@ -609,7 +711,9 @@ async function openGame(key) {
   document.getElementById('arcade').hidden = true;
   document.getElementById('gameframe').hidden = false;
 
-  if (await gameReachable(g.port)) {
+  const reachable=await gameReachable(g.port);
+  if(players[myId]!==owner || owner.mapRevision!==revision || owner.seat!==seat || document.getElementById('gameframe').hidden) return;
+  if (reachable) {
     iframe.src = gameUrl(g.port);
   } else {
     const origin = gameOrigin(g.port);
@@ -629,7 +733,7 @@ async function openGame(key) {
 function closeGame() {
   document.getElementById('gameframe-iframe').src = 'about:blank';
   document.getElementById('gameframe').hidden = true;
-  held.clear();
+  resetMovement();
   maybeArcade(players[myId]); // still seated -> show the menu again
 }
 
@@ -648,6 +752,7 @@ window.addEventListener('message', (e) => {
 
 function move(me, dt) {
   me.walking=false;
+  if(worldLocked()) return;
   let dx = axis(['a', 'arrowleft'], ['d', 'arrowright']);
   let dy = axis(['w', 'arrowup'], ['s', 'arrowdown']);
   // Touching a movement key takes the wheel back: an autopilot you cannot interrupt is
@@ -657,7 +762,7 @@ function move(me, dt) {
   if (!dx && !dy) return;
   me.direction=Math.abs(dx)>Math.abs(dy)?(dx<0?'left':'right'):(dy<0?'up':'down');
   const oldX=me.x, oldY=me.y;
-  if (me.seat !== null) stand(me, false); // walking away from a chair gets you out of it
+  if (me.seat !== null) return stand(me, false);
 
   if (dx && dy) {
     const inv = Math.SQRT1_2; // keep diagonals the same speed as straight lines
@@ -680,9 +785,9 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 // Runs every frame, not just when you press a key: someone can walk into you while you
 // are standing still, and you should be the one who gives way.
 function separate(me) {
-  if (me.seat !== null) return; // someone sitting is furniture, they do not get shoved
+  if (worldLocked() || me.seat !== null) return;
 
-  const others = Object.values(players).filter((p) => p.id !== me.id);
+  const others = Object.values(players).filter((p) => p.id !== me.id && sameMap(p,me));
   const [px, py] = separateFrom(me.x, me.y, others);
   if (px === me.x && py === me.y) return;
 
@@ -717,12 +822,13 @@ function frame(now) {
       p.ry += (p.y - p.ry) * t;
     }
 
-    if (now - lastSent > 1000 / SEND_HZ && (me.x !== sentX || me.y !== sentY)) {
-      socket.emit('move', { x: me.x, y: me.y });
+    if (!worldLocked() && now - lastSent > 1000 / SEND_HZ && (me.x !== sentX || me.y !== sentY)) {
+      socket.emit('move', worldPayload({ x: me.x, y: me.y }));
       lastSent = now;
       sentX = me.x;
       sentY = me.y;
     }
+    checkPortal(me,now);
 
   }
 
@@ -730,6 +836,27 @@ function frame(now) {
 
   draw(me);
   requestAnimationFrame(frame);
+}
+
+function checkPortal(me,now) {
+  if(worldLocked() || me.seat!==null) return;
+  const portal=map.portals.find(p=>inPortal(me,p));
+  if(!portal) {portalArmed=true;return;}
+  if(!portalArmed || now<portalCooldown) return;
+  portalArmed=false;travelRequested=true;
+  // Socket.IO preserves order: server validates the flushed position before the portal.
+  socket.emit('move',worldPayload({x:me.x,y:me.y}));
+  socket.emit('travel-request',worldPayload({portalId:portal.id}));
+  resetMovement();
+  requestTimer=setTimeout(async()=>{
+    if(!travelRequested) return;
+    try {
+      const data=await syncWorld();
+      travelRequested=false;
+      if(data.travel?.status==='prepared') transition.run(data.travel);
+      else await applyWorldPlayer(data.players[myId]);
+    } catch {socket.disconnect();socket.connect();}
+  },2000);
 }
 
 function draw(me) {
@@ -764,7 +891,7 @@ function draw(me) {
   // Avatars fade with the audio falloff while the range overlay is up; bubbles are drawn
   // afterwards at full strength, so a distant message stays readable even when the person
   // saying it is dimmed out.
-  const roster = Object.values(players).sort((a,b)=>a.ry-b.ry);
+  const roster = Object.values(players).filter(p=>sameMap(p,me)).sort((a,b)=>a.ry-b.ry);
   for (const p of roster) {
     ctx.save();
     if (showRange && p.id !== myId) {
@@ -779,7 +906,7 @@ function draw(me) {
 
   const near = nearestSeat(me);
   const hint =
-    me.seat !== null ? 'E to stand' : near < 0 ? null : seatTaken(near) ? 'taken' : 'E to sit';
+    me.seat !== null ? 'E to stand' : near < 0 ? null : seatTaken(near) ? 'taken' : 'E to sit · '+map.seats[near].kind;
   if (hint) {
     ctx.font = '600 12px system-ui, sans-serif';
     ctx.textAlign = 'center';

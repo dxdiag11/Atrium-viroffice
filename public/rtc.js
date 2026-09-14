@@ -240,15 +240,17 @@ function updateSpatialAudio(me, players, radioHolder) {
 
     const dx = other.x - me.x;
     const dy = other.y - me.y;
-    const gain = voiceGain(Math.hypot(dx, dy), dnd);
+    const same=sameMap(me,other);
+    const distance=same?Math.hypot(dx,dy):Infinity;
+    const gain = voiceGain(distance, dnd,same);
     if (gain > 0) audible++;
 
     // setTargetAtTime instead of .value: ramps smoothly, no zipper noise.
     peer.gain.gain.setTargetAtTime(gain, now, 0.08);
-    peer.panner.pan.setTargetAtTime(Math.max(-1, Math.min(1, dx / FAR)), now, 0.08);
+    peer.panner.pan.setTargetAtTime(same?Math.max(-1, Math.min(1, dx / FAR)):0, now, 0.08);
 
     // A radio keys up sharply, so this one gets a much shorter time constant.
-    const overRadio = radioGain(Math.hypot(dx, dy), id === radioHolder, dnd);
+    const overRadio = radioGain(distance, id === radioHolder, dnd,same);
     peer.radio.gain.setTargetAtTime(overRadio, now, 0.02);
   }
   return audible;

@@ -9,13 +9,14 @@ require('./public/geom.js');
 require('./public/characters.js');
 require('./public/office.js');
 require('./public/chat-core.js');
-const map = buildOffice(); // walls, spawn and seats all come from the one office model
+const {WorldTravel}=require('./world-travel.js');
 
 const app = express();
 app.use(express.static(__dirname + '/public'));
 app.use('/assets/maps', express.static(__dirname + '/assets/maps', { maxAge: '1h' }));
 app.use('/assets/characters', express.static(__dirname + '/assets/characters', { maxAge: '1h' }));
 app.use('/assets/utilities', express.static(__dirname + '/assets/utilities', { maxAge: '1h' }));
+app.use('/assets/transitions', express.static(__dirname + '/assets/transitions', { maxAge: '1h' }));
 
 // Browsers only hand out a mic on a secure origin. localhost counts as one; a LAN IP
 // does not, so testing with someone on another machine needs https. Run ./make-cert.sh
@@ -31,6 +32,8 @@ const server = secure
 const io = new Server(server);
 
 const players = {};
+const travel=new WorldTravel(players,(id,event,data)=>io.to(id).emit(event,data),(event,data)=>io.emit(event,data));
+setInterval(()=>travel.tick(),250).unref();
 
 // The walkie channel: one talker at a time, owned here for the same reason seats are.
 const RADIO_TIMEOUT = 30000;
@@ -158,6 +161,7 @@ io.on('connection', (socket) => {
     buckets[socket.id] = makeBucket(CHAT_LIMIT[0], CHAT_LIMIT[1]);
     taps[socket.id] = makeBucket(TAP_LIMIT[0], TAP_LIMIT[1]);
     const character = characterById(payload && payload.characterId);
+    const map=getMap('office');
     const spawn = {...map.spawn};
     for (let attempt=0; attempt<20; attempt++) {
       const x=map.spawn.x+(Math.random()-.5)*80, y=map.spawn.y+(Math.random()-.5)*36;
@@ -175,6 +179,7 @@ io.on('connection', (socket) => {
       x: spawn.x,
       y: spawn.y,
       seat: null,
+      mapId:'office', mapRevision:0, transitioning:false,
     };
     socket.emit('players', players, socket.id, radio);
     socket.emit('chat-history', messages);
@@ -244,16 +249,25 @@ io.on('connection', (socket) => {
   socket.on('move', (pos) => {
     const p = players[socket.id];
     if (!p || !pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return;
-    if (p.seat !== null) return; // seated players are parked on their chair
+    if (!worldVersion(p,pos) || p.transitioning || p.seat !== null) return;
+    const map=getMap(p.mapId);
     if (!canTraverse(p, pos, RADIUS, map.collisions)) {
-      return socket.emit('position-corrected', {x:p.x,y:p.y});
+      return socket.emit('position-corrected', {x:p.x,y:p.y,mapId:p.mapId,mapRevision:p.mapRevision});
     }
     const dx=pos.x-p.x, dy=pos.y-p.y;
     if (dx || dy) p.direction = Math.abs(dx)>Math.abs(dy) ? (dx<0?'left':'right') : (dy<0?'up':'down');
     p.x = pos.x;
     p.y = pos.y;
-    socket.broadcast.emit('player-moved', { id: socket.id, x: p.x, y: p.y, direction:p.direction });
+    travel.moved(socket.id);
+    socket.broadcast.emit('player-moved', { id: socket.id, x: p.x, y: p.y, direction:p.direction,mapId:p.mapId,mapRevision:p.mapRevision });
   });
+
+  socket.on('travel-request',data=>travel.request(socket.id,data));
+  socket.on('travel-commit',data=>travel.commit(socket.id,data));
+  socket.on('travel-cancel',data=>travel.cancel(socket.id,data));
+  socket.on('travel-finished',data=>travel.finish(socket.id,data));
+  let lastSync=0;
+  socket.on('world-sync',()=>{if(Date.now()-lastSync>=200){lastSync=Date.now();travel.sync(socket.id);}});
 
   // Composing is public the way speaking is: everyone can see the bubble over your head,
   // nobody can see the draft. Mention drafts included -- who is typing leaks nothing, and
@@ -287,32 +301,31 @@ io.on('connection', (socket) => {
 
   // The server owns who is sitting where: two people clicking the same chair at the
   // same time both reach here, and only the first one gets it.
-  const seatTaken = (i) => Object.values(players).some((q) => q.seat === i);
+  const seatTaken = (i,mapId) => Object.values(players).some((q) => q.mapId===mapId && q.seat === i);
 
-  socket.on('sit', (i) => {
+  socket.on('sit', (data) => {
     const p = players[socket.id];
-    if (!p || p.seat !== null) return;
+    if (!p || p.seat !== null || p.transitioning || !worldVersion(p,data)) return;
+    const map=getMap(p.mapId),i=data.seat;
     if (!Number.isInteger(i) || i < 0 || i >= map.seats.length) return;
     if (Math.hypot(p.x-map.seats[i].x,p.y-map.seats[i].y)>48) return;
     if (!canTraverse(p,map.seats[i],RADIUS,map.collisions)) return;
-    if (seatTaken(i)) return socket.emit('seat-denied', i);
+    if (seatTaken(i,p.mapId)) return socket.emit('seat-denied', {seat:i,mapId:p.mapId,mapRevision:p.mapRevision});
 
     p.seat = i;
     p.x = map.seats[i].x;
     p.y = map.seats[i].y;
-    io.emit('player-seat', { id: socket.id, seat: i, x: p.x, y: p.y });
+    io.emit('player-seat', { id: socket.id, seat: i, x: p.x, y: p.y,mapId:p.mapId,mapRevision:p.mapRevision });
   });
 
   socket.on('stand', (pos) => {
     const p = players[socket.id];
-    if (!p || p.seat === null) return;
-    if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
-      if (Math.hypot(p.x-pos.x,p.y-pos.y)>60 || !canTraverse(p,pos,RADIUS,map.collisions)) return;
-      p.x = pos.x;
-      p.y = pos.y;
-    }
+    if (!p || p.seat === null || p.transitioning || !worldVersion(p,pos)) return;
+    const map=getMap(p.mapId),point=safeStand(map,map.seats[p.seat],players,p.id);
+    if(!point) return socket.emit('seat-denied',{reason:'Jalan keluar terhalang. Tunggu sebentar.',mapId:p.mapId,mapRevision:p.mapRevision});
+    p.x=point.x;p.y=point.y;
     p.seat = null;
-    io.emit('player-seat', { id: socket.id, seat: null, x: p.x, y: p.y });
+    io.emit('player-seat', { id: socket.id, seat: null, x: p.x, y: p.y,mapId:p.mapId,mapRevision:p.mapRevision });
   });
 
   socket.on('ptt-down', () => {
@@ -339,6 +352,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    travel.remove(socket.id);
     if (radio === socket.id) releaseRadio(io);
     delete buckets[socket.id];
     delete taps[socket.id];

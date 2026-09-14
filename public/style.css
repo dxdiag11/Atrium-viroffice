@@ -10,6 +10,14 @@ html, body {
 }
 
 #stage { display: block; width: 100vw; height: 100vh; }
+#map-transition { position:fixed; inset:0; overflow:hidden; z-index:1; pointer-events:none; }
+#map-transition img { position:absolute; top:0; left:0; max-width:none; opacity:1; will-change:transform; }
+#map-transition img + img { z-index:1; }
+#map-transition[hidden], #map-transition img[hidden] { display:none; }
+#travel-status { position:fixed; z-index:5; top:65px; left:50%; transform:translateX(-50%); padding:8px 14px; border-radius:8px; background:#14161cee; max-width:85vw; }
+#locations { position:fixed; top:16px; right:16px; z-index:3; padding:8px 12px; border:1px solid #85734b88; border-radius:10px; background:#25291feb; max-height:40vh; overflow:auto; }
+#locations summary { cursor:pointer; }
+#locations ul { list-style:none; margin:8px 0 0; padding:0; font-size:12px; }
 
 #hud {
   position: fixed;

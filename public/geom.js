@@ -14,17 +14,17 @@ function falloff(d) {
 
 // Do Not Disturb is a wall rather than a volume knob: every incoming voice is cut at
 // any distance, so walking up to someone no longer opens a channel to them.
-function voiceGain(distance, dnd) {
-  return dnd ? 0 : falloff(distance);
+function voiceGain(distance, dnd, sameMap = true) {
+  return dnd || !sameMap ? 0 : falloff(distance);
 }
 
 // How loud a walkie transmission from `distance` away should be. Someone close enough
 // to hear directly gets 0: you should not hear the same voice twice, once through the
 // air and once over the radio. Do Not Disturb silences the radio too -- a transmission
 // is still audio arriving unasked, and the whole point of the flag is not to be reached.
-function radioGain(distance, transmitting, dnd) {
+function radioGain(distance, transmitting, dnd, sameMap = true) {
   if (!transmitting || dnd) return 0;
-  return falloff(distance) > 0 ? 0 : RADIO_LEVEL;
+  return sameMap && falloff(distance) > 0 ? 0 : RADIO_LEVEL;
 }
 
 // AABB test of the avatar square against a list of [x, y, w, h] wall rects.
@@ -37,6 +37,15 @@ function canMove(x, y, r, rects) {
   }
   for (const [rx, ry, rw, rh] of rects) {
     if (x + r > rx && x - r < rx + rw && y + r > ry && y - r < ry + rh) return false;
+  }
+  for (const poly of rects.polygons || []) {
+    if (pointInPolygon(x,y,poly)) return false;
+    // Circle clearance from each polygon edge, consistent with avatar radius.
+    for(let i=0;i<poly.length;i++) {
+      const [ax,ay]=poly[i], [bx,by]=poly[(i+1)%poly.length];
+      const t=Math.max(0,Math.min(1,((x-ax)*(bx-ax)+(y-ay)*(by-ay))/((bx-ax)**2+(by-ay)**2)));
+      if(Math.hypot(x-ax-t*(bx-ax),y-ay-t*(by-ay))<r) return false;
+    }
   }
   return true;
 }

@@ -6,10 +6,15 @@
   "scripts": {
     "start": "node server.js",
     "start:all": "node scripts/run-all.js",
-    "test": "node --test test.js"
+    "test": "node --test test.js test/*.test.js"
   },
   "dependencies": {
     "express": "^4.21.2",
     "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "pngjs": "^7.0.0",
+    "socket.io-client": "^4.8.3"
   }
 }

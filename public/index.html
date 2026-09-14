@@ -8,6 +8,9 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
+<div id="map-transition" aria-hidden="true" hidden><img src="/assets/transitions/root-fern-left.png" alt=""><img src="/assets/transitions/root-fern-right.png" alt=""></div>
+<div id="travel-status" role="status" hidden></div>
+<details id="locations" hidden><summary id="map-name">Office</summary><ul id="location-roster"></ul></details>
 
 <div id="hud" aria-label="Office controls" hidden>
   <button id="mute" class="dock-control" type="button" aria-label="Mute microphone" aria-pressed="false" aria-keyshortcuts="v" title="Toggle microphone (V)">
@@ -283,6 +286,8 @@
 <script src="geom.js"></script>
 <script src="pathfind.js"></script>
 <script src="office.js"></script>
+<script src="recreation.js"></script>
+<script src="maps.js"></script>
 <script src="characters.js"></script>
 <script src="sprites.js"></script>
 <script src="walkie.js"></script>
@@ -291,6 +296,7 @@
 <script src="chat-ui.js"></script>
 <script src="vote-board.js"></script>
 <script src="bubble.js"></script>
+<script src="map-transition.js"></script>
 <script src="main.js"></script>
 </body>
 </html>
