@@ -3,6 +3,10 @@
 const OFFICE = {
   width:1499, height:1049, image:'/assets/maps/atrium-cave-office.png',
   spawn:{x:748,y:910},
+  rooms:[
+    {id:'meeting-main', name:'Meeting Room'},
+    {id:'creative-studio', name:'Creative Studio'},
+  ],
   walkable:[
     [[406,265],[489,266],[510,206],[585,210],[631,254],[976,253],[1025,212],[1093,232],[1158,281],[1094,326],[1094,650],[1038,699],[1050,832],[1003,920],[854,952],[837,1049],[649,1049],[649,942],[509,924],[469,872],[456,716],[407,661],[396,472],[404,397],[361,303],[335,303],[335,265]],
     // Library and south door.
@@ -44,11 +48,13 @@ const OFFICE = {
   ],
   seats:[
     {x:304,y:121,dir:'right'},{x:380,y:121,dir:'left'},{x:381,y:180,dir:'left'},
-    ...[754,791,829,867,904].map(x=>({x,y:79,dir:'down'})),
-    ...[754,791,829,867,904].map(x=>({x,y:181,dir:'up'})),
-    {x:702,y:131,dir:'right'},{x:954,y:131,dir:'left'},
-    {x:1230,y:157,dir:'right'},{x:1286,y:121,dir:'down'},
-    {x:1247,y:216,dir:'up'},{x:1310,y:206,dir:'left'},
+    // Meeting room table: two rows facing each other, plus the two ends.
+    ...[754,791,829,867,904].map(x=>({x,y:79,dir:'down',room:'meeting-main'})),
+    ...[754,791,829,867,904].map(x=>({x,y:181,dir:'up',room:'meeting-main'})),
+    {x:702,y:131,dir:'right',room:'meeting-main'},{x:954,y:131,dir:'left',room:'meeting-main'},
+    // Creative studio.
+    {x:1230,y:157,dir:'right',room:'creative-studio'},{x:1286,y:121,dir:'down',room:'creative-studio'},
+    {x:1247,y:216,dir:'up',room:'creative-studio'},{x:1310,y:206,dir:'left',room:'creative-studio'},
     {x:255,y:443,dir:'left'},{x:142,y:493,dir:'up'},
     // Monitor workstations open the game menu; other seating stays social.
     {x:553,y:299,dir:'down',game:true},{x:662,y:297,dir:'down',game:true},

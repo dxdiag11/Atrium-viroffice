@@ -116,6 +116,46 @@
   </div>
 </div>
 
+<!-- Muncul saat kamu duduk di meeting room atau creative studio -->
+<div id="meeting-panel" hidden>
+  <div class="mp-head">
+    <span id="mp-room-name">Meeting Room</span>
+    <span class="spacer"></span>
+    <span id="mp-watching" title="Sedang menonton">&#128065;&#65039; 0</span>
+    <button id="mp-toggle" type="button" aria-label="Minimize meeting panel">&minus;</button>
+  </div>
+  <div class="mp-body">
+    <div class="mp-stage">
+      <video id="mp-video" autoplay playsinline muted hidden></video>
+      <div id="mp-stage-empty">Belum ada yang membagikan layar.</div>
+      <div id="mp-presenting-badge" hidden>
+        <span>Kamu membagikan layar</span>
+        <button id="mp-stop" type="button">Stop</button>
+      </div>
+    </div>
+    <div class="mp-share-row">
+      <button id="mp-share" type="button">Bagikan Layar</button>
+      <div id="mp-share-menu" hidden>
+        <button type="button" data-kind="screen">Seluruh Layar</button>
+        <button type="button" data-kind="window">Jendela Aplikasi</button>
+        <button type="button" data-kind="tab">Tab Browser</button>
+      </div>
+      <span id="mp-share-status"></span>
+    </div>
+    <div class="mp-roster">
+      <div class="mp-eyebrow">Di ruangan</div>
+      <ul id="mp-roster-list"></ul>
+    </div>
+    <div class="mp-chat">
+      <div id="mp-chat-log"></div>
+      <div class="mp-chat-compose">
+        <input id="mp-chat-input" type="text" placeholder="Chat ruangan&hellip;" autocomplete="off" maxlength="280">
+        <button id="mp-chat-send" type="button">Kirim</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="gate">
   <div class="card">
     <div class="eyebrow">A LITTLE CLOSER, EVEN FROM AFAR</div>
@@ -292,6 +332,8 @@
 <script src="sprites.js"></script>
 <script src="walkie.js"></script>
 <script src="rtc.js"></script>
+<script src="screenshare-core.js"></script>
+<script src="screenshare.js"></script>
 <script src="chat-core.js"></script>
 <script src="chat-ui.js"></script>
 <script src="vote-board.js"></script>

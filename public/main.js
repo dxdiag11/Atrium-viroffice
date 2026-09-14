@@ -77,6 +77,7 @@ async function applyWorldPlayer(snapshot) {
     document.getElementById('arcade').hidden=true;
     document.getElementById('gameframe').hidden=true;
     document.getElementById('gameframe-iframe').src='about:blank';
+    resetScreenshare();
   }
   players[snapshot.id]={...current,...snapshot,rx:snapshot.x,ry:snapshot.y,walkUntil:0,walking:false};
   clearBubbles(snapshot.id);renderLocations();
@@ -229,6 +230,7 @@ socket.on('players', (all, id, holder) => {
   myId = id;
   radioHolder = holder || null;
   setSelfId(id);
+  resetScreenshare();
   for (const p of Object.values(all)) addPlayer(p);
   map=getMap('office');
   decodedImage(map.image).then(img=>{if(map.id==='office') background=img;});
@@ -273,6 +275,7 @@ socket.on('player-seat', ({ id, seat, x, y, mapId, mapRevision }) => {
     sentX = x; // the server already knows this position, don't echo it back
     sentY = y;
     maybeArcade(p);
+    updateMeetingRoom(p);
   }
 });
 
@@ -378,12 +381,20 @@ socket.on('voted', applyVote);
 
 socket.on('signal', ({ from, data }) => handleSignal(from, data));
 
+socket.on('screen-share-state', onScreenShareState);
+socket.on('screen-share-denied', onScreenShareDenied);
+socket.on('screen-signal', onScreenSignal);
+socket.on('screen-viewer', onScreenViewer);
+socket.on('room-chat', onRoomChat);
+socket.on('room-chat-history', onRoomChatHistory);
+
 socket.on('disconnect', () => {
   transition.reset();clearTimeout(requestTimer);travelRequested=false;standPending=false;
   document.getElementById('locations').hidden=true;
   document.getElementById('gameframe').hidden=true;
   document.getElementById('arcade').hidden=true;
   document.getElementById('gameframe-iframe').src='about:blank';
+  resetScreenshare();
   for (const id of Object.keys(players)) if (id !== myId) closePeer(id);
   for (const id of Object.keys(players)) delete players[id];
   myId=null; joining=false; radioHolder=null; held.clear(); sentX=sentY=null;
@@ -991,9 +1002,11 @@ setInterval(() => {
   if (me.speaking!==speaking) {me.speaking=speaking;socket.emit('speaking',speaking);}
   const audible = updateSpatialAudio(me, players, radioHolder);
   document.getElementById('peers').textContent = audible + ' nearby';
+  updateMeetingRoom(me);
 }, 100);
 
 initWalkie();
 initBubbles();
+initScreenshare();
 selectCharacter(selectedCharacter);
 requestAnimationFrame(frame);

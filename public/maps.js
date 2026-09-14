@@ -3,11 +3,18 @@ const MAPS = (()=>{
   Object.assign(office,{id:'office',name:'Office',arrivals:{entrance:{x:748,y:941,direction:'up'}},
     portals:[{id:'to-recreation',trigger:[[677,994],[814,994],[814,1049],[677,1049]],targetMapId:'recreation',targetSpawnId:'entrance'}]});
   const offsets={up:[0,24],down:[0,-24],left:[24,0],right:[-24,0]};
+  const roomSeats=new Map(),seatRoom=new Map();
   office.seats.forEach((s,i)=>{
     s.id=`office-${i}`;s.kind='chair';
     const [dx,dy]=offsets[s.dir];
     s.standPoints=[{x:s.x+dx,y:s.y+dy},{x:s.x,y:s.y}];
+    if (s.room) {
+      seatRoom.set(i,s.room);
+      if (!roomSeats.has(s.room)) roomSeats.set(s.room,[]);
+      roomSeats.get(s.room).push(i);
+    }
   });
+  Object.assign(office,{roomSeats,seatRoom});
   return new Map([['office',office],['recreation',buildRecreation()]]);
 })();
 function getMap(id) { return MAPS.get(id) || null; }

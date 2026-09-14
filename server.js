@@ -9,6 +9,7 @@ require('./public/geom.js');
 require('./public/characters.js');
 require('./public/office.js');
 require('./public/chat-core.js');
+require('./public/screenshare-core.js');
 const {WorldTravel}=require('./world-travel.js');
 
 const app = express();
@@ -60,6 +61,31 @@ let msgSeq = 0;
 // alive at a time. Kept here rather than searched for in `messages`, which is a ring
 // buffer: a busy room could push the open poll out of it and quietly allow a second one.
 let openPoll = null;
+
+// Meeting rooms: one presenter per room (same exclusivity as the walkie channel), and a
+// small room-scoped chat log. Both keyed by roomChannel(mapId, roomId); both wiped once
+// nobody is left seated in that room, same "empty room, blank slate" rule as global chat.
+const presenters = new Map();
+const roomChat = new Map();
+
+function roomOf(map, seatIndex) {
+  return seatIndex === null || seatIndex === undefined ? null : map.seatRoom?.get(seatIndex) || null;
+}
+
+function stopPresentingAndTellRoom(channel, id) {
+  if (!stopPresenting(presenters, channel, id)) return;
+  io.to(channel).emit('screen-share-state', { presenter: null });
+}
+
+// Nobody left sitting in this room: presenting anyone right now would be a stale lock
+// nobody can ever release, and last-viewer chat history nobody left can read.
+function emptyIfRoomVacant(mapId, roomId, channel) {
+  const stillSeated = Object.values(players).some((q) => q.mapId === mapId && roomOf(getMap(mapId), q.seat) === roomId);
+  if (stillSeated) return;
+  const current = presenterFor(presenters, channel);
+  if (current) stopPresentingAndTellRoom(channel, current.id);
+  roomChat.delete(channel);
+}
 
 function makeMessage(fields) {
   return {
@@ -316,6 +342,15 @@ io.on('connection', (socket) => {
     p.x = map.seats[i].x;
     p.y = map.seats[i].y;
     io.emit('player-seat', { id: socket.id, seat: i, x: p.x, y: p.y,mapId:p.mapId,mapRevision:p.mapRevision });
+
+    const roomId = roomOf(map, i);
+    if (roomId) {
+      const channel = roomChannel(p.mapId, roomId);
+      socket.join(channel);
+      const current = presenterFor(presenters, channel);
+      if (current) socket.emit('screen-share-state', { presenter: current });
+      socket.emit('room-chat-history', roomChat.get(channel) || []);
+    }
   });
 
   socket.on('stand', (pos) => {
@@ -323,9 +358,70 @@ io.on('connection', (socket) => {
     if (!p || p.seat === null || p.transitioning || !worldVersion(p,pos)) return;
     const map=getMap(p.mapId),point=safeStand(map,map.seats[p.seat],players,p.id);
     if(!point) return socket.emit('seat-denied',{reason:'Jalan keluar terhalang. Tunggu sebentar.',mapId:p.mapId,mapRevision:p.mapRevision});
+    const oldRoomId = roomOf(map, p.seat);
     p.x=point.x;p.y=point.y;
     p.seat = null;
     io.emit('player-seat', { id: socket.id, seat: null, x: p.x, y: p.y,mapId:p.mapId,mapRevision:p.mapRevision });
+
+    if (oldRoomId) {
+      const channel = roomChannel(p.mapId, oldRoomId);
+      stopPresentingAndTellRoom(channel, socket.id);
+      socket.leave(channel);
+      emptyIfRoomVacant(p.mapId, oldRoomId, channel);
+    }
+  });
+
+  // Meeting-room screen share: one presenter per room, same exclusivity as the walkie
+  // channel. `kind` ('screen'|'window'|'tab') is only ever a display label -- the browser's
+  // own getDisplayMedia picker is what actually governs the capture grant.
+  socket.on('screen-share-start', (data) => {
+    const p = players[socket.id];
+    if (!p || p.seat === null) return;
+    const map = getMap(p.mapId), roomId = roomOf(map, p.seat);
+    if (!roomId) return;
+    const channel = roomChannel(p.mapId, roomId);
+    const kind = ['screen', 'window', 'tab'].includes(data?.kind) ? data.kind : 'screen';
+    const state = startPresenting(presenters, channel, { id: socket.id, name: p.name, kind });
+    if (!state) return socket.emit('screen-share-denied', { reason: 'busy', by: presenterFor(presenters, channel)?.name });
+    io.to(channel).emit('screen-share-state', { presenter: state });
+  });
+
+  socket.on('screen-share-stop', () => {
+    const p = players[socket.id];
+    if (!p || p.seat === null) return;
+    const roomId = roomOf(getMap(p.mapId), p.seat);
+    if (!roomId) return;
+    stopPresentingAndTellRoom(roomChannel(p.mapId, roomId), socket.id);
+  });
+
+  // Verbatim relay, same shape as `signal` below -- a second channel only so the two
+  // negotiations (voice mesh vs. screen star) never share signaling state per peer.
+  socket.on('screen-signal', (msg) => {
+    if (!msg || !players[msg.to] || !players[socket.id]) return;
+    io.to(msg.to).emit('screen-signal', { from: socket.id, data: msg.data });
+  });
+
+  socket.on('room-chat', (payload) => {
+    const p = players[socket.id];
+    if (!p || p.seat === null) return;
+    const roomId = roomOf(getMap(p.mapId), p.seat);
+    if (!roomId) return;
+    const text = normalizeText(payload && payload.text);
+    if (!text || !buckets[socket.id]?.take(Date.now())) return;
+    const channel = roomChannel(p.mapId, roomId);
+    const msg = makeRoomMessage({ from: socket.id, name: p.name, color: p.color, text });
+    rememberRoomMessage(roomChat, channel, msg);
+    io.to(channel).emit('room-chat', msg);
+  });
+
+  // Viewer-engagement signal only (panel open/minimized) -- purely a metrics broadcast,
+  // never stored, never gates who can actually receive the video track.
+  socket.on('screen-view', (payload) => {
+    const p = players[socket.id];
+    if (!p || p.seat === null || typeof payload?.watching !== 'boolean') return;
+    const roomId = roomOf(getMap(p.mapId), p.seat);
+    if (!roomId) return;
+    io.to(roomChannel(p.mapId, roomId)).emit('screen-viewer', { id: socket.id, watching: payload.watching });
   });
 
   socket.on('ptt-down', () => {
@@ -357,8 +453,14 @@ io.on('connection', (socket) => {
     delete buckets[socket.id];
     delete taps[socket.id];
     if (!players[socket.id]) return;
-    const { name } = players[socket.id];
+    const { name, mapId, seat } = players[socket.id];
+    const roomId = roomOf(getMap(mapId), seat);
     delete players[socket.id];
+    if (roomId) {
+      const channel = roomChannel(mapId, roomId);
+      stopPresentingAndTellRoom(channel, socket.id);
+      emptyIfRoomVacant(mapId, roomId, channel);
+    }
     io.emit('player-left', socket.id);
     announce(name + ' keluar');
 
