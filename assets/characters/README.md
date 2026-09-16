@@ -26,3 +26,13 @@ no labels, borders, grid lines, background, cast shadows, logos, or text.
 
 `male-001` already supplies its image files. The other folders intentionally contain
 prompts only until their generated PNGs are reviewed and placed alongside them.
+
+## Exception: `male-006`
+
+`male-006` is not a selectable character and is not in `public/characters.js`. It is the
+Recreation booth DJ, so it ships `move.png` only and does not follow the grid above: its
+sheet is 5 columns x 3 rows on the same 1448 x 1086 canvas, with uneven cells, because
+four of its poses hold a DJ controller wider than the body. `public/dj-npc.js` addresses
+those four cells by the transparent gutters between them rather than by division, and
+`test.js` re-derives the geometry from the PNG. Re-exporting this sheet will fail that
+test unless the poses land in the same places.

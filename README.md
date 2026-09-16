@@ -28,6 +28,7 @@ the server validates each step too, so you cannot walk through walls.
 - **Two-way travel between maps** — walk through a door, a two-panel curtain closes over the whole screen, the server picks your arrival spot, and the curtain opens on the other side. Proximity voice, walkie, chat, mentions, and the voting board all keep working across the trip; DND and mute never change on travel.
 - **Desk games** — sit at a chair facing a monitor and a game menu appears: **Gaple**, **Tumble Rush**, or **Werewolf**, running as an overlay inside the office.
 - **Ten characters** — picked before you join, with walking and sitting/talking sprites from `assets/characters/`.
+- **A DJ in the booth** — the party room's decks are worked by an animated character cycling the mixing poses from `assets/characters/male-006/move.png`.
 
 ### How it works (in brief)
 
@@ -216,8 +217,13 @@ office. Both doors are one continuous walk: no `E`, no dialog, no rejoining.
   furniture count.
 - **2 toilets** and **6 bed edges** (one sit-down slot per bunk; there is no lying-down
   animation, only the existing sit pose).
-- The DJ console, dance floor, and party area are walkable and can be passed through or
-  stood near, but have no music or DJ controls in this pass.
+- **A DJ works the booth.** `public/dj-npc.js` animates a non-player character behind the
+  console, cycling the four front-facing mixing poses from
+  `assets/characters/male-006/move.png` — hands on the decks, leaning into the mix, one
+  hand thrown up. He is scenery, not a peer: no `mapId`, no seat, no audio.
+- The dance floor and party area are walkable and can be passed through or stood near,
+  and the strip behind the decks still walks behind the DJ; there are no music or DJ
+  controls in this pass.
 
 Every player carries a `mapId` and `mapRevision`. Rendering, collision, seat
 occupancy, and "who's nearby" are scoped to your current map; chat, mentions, polls,
@@ -240,6 +246,15 @@ speaking gestures. Each image is sliced proportionally into four columns and thr
 rows using its actual size, supporting both supplied export dimensions without
 rewriting the assets. Nearby voice and walkie-talkie still use the existing WebRTC
 mesh; a microphone energy meter publishes only a speaking boolean for animation.
+
+`male-006` is the exception: it is a DJ sheet, not a selectable character, so it is not
+in the allowlist and ships no `sit-talk.png`. Its grid is 5 x 3 with uneven cells,
+because four of its poses hold a DJ controller drawn much wider than a body, so
+`public/dj-npc.js` addresses those cells by the transparent gutters between them. Each
+mixing pose is cut at the row where its own controller starts and anchored on the white
+tee, which leaves the character down to his hands and lets the map's painted mixer stand
+in for the one that was cut away. `test.js` re-derives those cut rows from the PNG, so a
+re-export that moves a pose fails the suite instead of shipping a clipped head.
 
 The renderer prepares each frame using its connected character silhouette, normalizes
 standing/seated heights, and places the lower-body center and foot baseline at the

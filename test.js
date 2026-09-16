@@ -8,6 +8,7 @@ require('./public/pathfind.js');
 require('./public/office.js');
 require('./public/characters.js');
 require('./public/chat-core.js');
+require('./public/dj-npc.js');
 
 test('all selectable characters have both sprite sheets and unknown IDs fall back safely', () => {
   assert.strictEqual(CHARACTERS.length,10);
@@ -28,6 +29,45 @@ test('sprite cells cover both native export sizes with no assumed 362px crop', (
     assert.strictEqual(spriteFrame(width,height,'left',0).y,height/3);
     assert.strictEqual(spriteFrame(width,height,'up',0).y,0); // no back-facing art supplied
   }
+});
+
+test('the booth DJ poses are cut out of male-006/move.png exactly where the sheet allows', () => {
+  const {PNG}=require('pngjs');
+  const sheet=PNG.sync.read(fs.readFileSync(path.join(__dirname,'assets','characters','male-006','move.png')));
+  assert.deepStrictEqual([sheet.width,sheet.height],[1448,1086]);
+  const alpha=(x,y)=>sheet.data[(y*sheet.width+x)*4+3];
+  const clear=x=>{for(let y=0;y<sheet.height;y++) if(alpha(x,y)>=96) return false;return true;};
+
+  assert.deepStrictEqual(DJ_POSES.map(p=>p.w),[354,349,349,354]);
+  assert.strictEqual(new Set(DJ_POSES.map(p=>p.x+':'+p.y)).size,DJ_POSES.length);
+  for (const pose of DJ_POSES) {
+    // The pose must sit inside its own gutters, or a neighbour's controller bleeds in.
+    assert.ok(clear(pose.x),'left gutter '+pose.x);
+    assert.ok(clear(pose.x+pose.w-1),'right gutter '+pose.x);
+
+    const extent=y=>{
+      let min=pose.w,max=-1;
+      for(let x=0;x<pose.w;x++) if(alpha(pose.x+x,pose.y+y)>=96) {if(x<min)min=x;if(x>max)max=x;}
+      return max<0?0:max-min+1;
+    };
+    let widest=0;for(let y=0;y<362;y++) widest=Math.max(widest,extent(y));
+
+    // top is the cap; every row above it is empty, so nothing of the head is clipped.
+    for(let y=0;y<pose.top;y++) assert.strictEqual(extent(y),0,'above top '+pose.x);
+    assert.ok(extent(pose.top)>0,'top row empty '+pose.x);
+    // cut is the pose's own controller: the first row spanning most of the artwork.
+    assert.ok(extent(pose.cut)>widest*0.8,'cut row too narrow '+pose.x);
+    for(let y=pose.top;y<pose.cut;y++) assert.ok(extent(y)<=widest*0.8,'controller starts above cut '+pose.x);
+    // chest anchors the frame, so it has to land on the character, not beside him.
+    assert.ok(alpha(pose.x+Math.round(pose.chest),pose.cut-1)>=96,'chest off body '+pose.x);
+  }
+
+  // Hands land on the painted mixer, and the head clears the walkable strip behind it.
+  const scale=DJ_STAGE.height/DJ_STAGE.body;
+  const top=DJ_STAGE.y-Math.max(...DJ_POSES.map(p=>p.cut-p.top))*scale;
+  assert.strictEqual(DJ_STAGE.mapId,'recreation');
+  assert.ok(DJ_STAGE.y>149 && DJ_STAGE.y<196,'hands must rest on the mixer');
+  assert.ok(top>108,'the DJ must not reach past the north wall');
 });
 
 test('cave spawn, seats, waterways and desk collisions match artwork coordinates', () => {

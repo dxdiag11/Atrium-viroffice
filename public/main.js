@@ -239,6 +239,7 @@ socket.on('players', (all, id, holder) => {
   socket.emit('dnd',dndOn);players[id].dnd=dndOn;
   transition.prefetch().catch(()=>{});
   decodedImage(getMap('recreation').image).catch(()=>{});
+  loadDjNpc().catch(()=>{});
   for (const otherId of Object.keys(all)) {
     if (otherId !== myId) connectPeer(otherId);
   }
@@ -903,7 +904,19 @@ function draw(me) {
   // afterwards at full strength, so a distant message stays readable even when the person
   // saying it is dimmed out.
   const roster = Object.values(players).filter(p=>sameMap(p,me)).sort((a,b)=>a.ry-b.ry);
+  // The booth DJ sorts into the same depth order, so the strip behind the decks still
+  // walks behind him, and he dims on the same curve rather than staying lit in a dark
+  // corner. Held until an avatar passes his anchor, then drawn once.
+  let djDepth = djAnchorY(map.id);
+  const drawDj = () => {
+    ctx.save();
+    if (showRange) ctx.globalAlpha = falloff(Math.hypot(DJ_STAGE.x - me.x, DJ_STAGE.y - me.y));
+    drawDjNpc(ctx, map.id, performance.now());
+    ctx.restore();
+    djDepth = null;
+  };
   for (const p of roster) {
+    if (djDepth !== null && p.ry > djDepth) drawDj();
     ctx.save();
     if (showRange && p.id !== myId) {
       const distance = Math.hypot(p.rx - me.x, p.ry - me.y);
@@ -913,6 +926,7 @@ function draw(me) {
     if (ctx.globalAlpha > 0) drawPlayer(p, p.id === myId);
     ctx.restore();
   }
+  if (djDepth !== null) drawDj();
   drawBubbles(ctx, roster, performance.now());
 
   const near = nearestSeat(me);
